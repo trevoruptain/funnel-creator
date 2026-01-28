@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+:root {
+  /* Aurora Brand Colors */
+  --aurora-primary: #45108d;
+  --aurora-primary-dark: #2d0a5c;
+  --aurora-secondary: #7c0667;
+  --aurora-accent: #e91e8c;
+
+  /* Light mode defaults */
+  --background: #f8f6fc;
+  --foreground: #1a1a2e;
+  --surface: #ffffff;
+  --text-secondary: #666680;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a14;
+    --foreground: #f0f0f5;
+    --surface: #1a1a2e;
+    --text-secondary: #9999aa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Funnel-specific styles */
+.funnel-container {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Smooth transitions for option cards */
+.funnel-container button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--aurora-primary);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--aurora-primary-dark);
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--aurora-primary);
+  outline-offset: 2px;
+}
+
+/* Input placeholder styling */
+input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* Animation helpers */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Mobile-first safe area handling */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .funnel-container {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Hide scrollbar for number picker */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Image placeholder styling */
+.image-placeholder {
+  background: linear-gradient(135deg, var(--aurora-primary) 0%, var(--aurora-secondary) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
