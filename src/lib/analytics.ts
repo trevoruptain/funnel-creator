@@ -148,13 +148,21 @@ export function captureUTMParams(): UTMParams {
   return utmParams;
 }
 
-export function getStoredUTMParams(): UTMParams {
+export function getStoredUTMParams(): Record<string, string> {
   if (typeof window === 'undefined') return {};
 
   const stored = sessionStorage.getItem('aurora_utm');
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as UTMParams;
+      // Convert to Record<string, string> by filtering out undefined values
+      const result: Record<string, string> = {};
+      Object.entries(parsed).forEach(([key, value]) => {
+        if (value !== undefined) {
+          result[key] = value;
+        }
+      });
+      return result;
     } catch {
       return {};
     }

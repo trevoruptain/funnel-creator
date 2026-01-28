@@ -69,7 +69,6 @@ export function MultipleChoiceStepComponent({ step }: Props) {
                 selected === option.id
                   ? '#ffffff'
                   : 'var(--funnel-text-primary)',
-              ringColor: 'var(--funnel-primary)',
               boxShadow:
                 selected === option.id
                   ? '0 4px 14px 0 rgba(0, 0, 0, 0.15)'

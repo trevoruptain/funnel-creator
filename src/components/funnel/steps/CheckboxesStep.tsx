@@ -79,7 +79,6 @@ export function CheckboxesStepComponent({ step }: Props) {
                   ? 'var(--funnel-primary)'
                   : 'var(--funnel-surface)',
                 color: isSelected ? '#ffffff' : 'var(--funnel-text-primary)',
-                ringColor: 'var(--funnel-primary)',
                 boxShadow: isSelected
                   ? '0 4px 14px 0 rgba(0, 0, 0, 0.15)'
                   : '0 2px 8px 0 rgba(0, 0, 0, 0.05)',
