@@ -1,106 +1,153 @@
+import { db } from '@/db';
+import { funnels, responses, sessions, stepViews } from '@/db/schema';
+import { desc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// For production, you'd use a real database like:
-// - Supabase
-// - Firebase
-// - Postgres
-// - MongoDB
-// etc.
-
-// This is a simple file-based storage for development/demo purposes
-const RESPONSES_DIR = path.join(process.cwd(), 'data', 'responses');
 
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
 
-    // Validate required fields
     if (!data.type) {
-      return NextResponse.json(
-        { error: 'Missing event type' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing event type' }, { status: 400 });
     }
 
-    // Add server timestamp and IP (for geo-targeting analysis)
-    const enrichedData = {
-      ...data,
-      serverTimestamp: new Date().toISOString(),
-      ip: request.headers.get('x-forwarded-for') || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
-    };
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    // Ensure responses directory exists
-    await fs.mkdir(RESPONSES_DIR, { recursive: true });
+    switch (data.type) {
+      // ── Funnel Start ───────────────────────────────────────────
+      case 'funnel_start': {
+        // Look up funnel by slug
+        const funnel = await db.query.funnels.findFirst({
+          where: eq(funnels.slug, data.funnel_id),
+        });
 
-    // Generate filename based on event type and timestamp
-    const filename = `${data.type}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.json`;
-    const filepath = path.join(RESPONSES_DIR, filename);
+        if (!funnel) {
+          return NextResponse.json({ error: `Funnel not found: ${data.funnel_id}` }, { status: 404 });
+        }
 
-    // Write to file
-    await fs.writeFile(filepath, JSON.stringify(enrichedData, null, 2));
+        await db
+          .insert(sessions)
+          .values({
+            funnelId: funnel.id,
+            sessionToken: data.session_id,
+            ip,
+            userAgent,
+            utmParams: data.utm ?? null,
+          })
+          .onConflictDoNothing(); // Idempotent — skip if session already exists
 
-    console.log(`[Funnel Event] ${data.type}:`, {
-      funnel_id: data.funnel_id,
-      session_id: data.session_id,
-      step_id: data.step_id,
-      email: data.email ? '***@***.***' : undefined,
-    });
+        console.log(`[Funnel Start] ${data.funnel_id} session=${data.session_id}`);
+        break;
+      }
 
-    // For 'complete' events, also write a summary file
-    if (data.type === 'complete' && data.email) {
-      const summaryFilename = `lead_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
-      const summaryPath = path.join(RESPONSES_DIR, summaryFilename);
-      await fs.writeFile(summaryPath, JSON.stringify(enrichedData, null, 2));
+      // ── Step View ──────────────────────────────────────────────
+      case 'step_view': {
+        // Resolve session
+        const session = await db.query.sessions.findFirst({
+          where: eq(sessions.sessionToken, data.session_id),
+        });
+
+        if (session) {
+          await db.insert(stepViews).values({
+            sessionId: session.id,
+            stepId: data.step_id,
+            stepIndex: data.step_index,
+            stepType: data.step_type,
+          });
+        }
+        break;
+      }
+
+      // ── Response ───────────────────────────────────────────────
+      case 'response': {
+        const session = await db.query.sessions.findFirst({
+          where: eq(sessions.sessionToken, data.session_id),
+        });
+
+        if (session) {
+          // Upsert — overwrite if they re-answer the same step
+          await db
+            .insert(responses)
+            .values({
+              sessionId: session.id,
+              stepId: data.step_id,
+              value: data.response,
+            })
+            .onConflictDoUpdate({
+              target: [responses.sessionId, responses.stepId],
+              set: { value: data.response, createdAt: new Date() },
+            });
+        }
+        break;
+      }
+
+      // ── Lead / Complete ────────────────────────────────────────
+      case 'lead':
+      case 'complete': {
+        const session = await db.query.sessions.findFirst({
+          where: eq(sessions.sessionToken, data.session_id),
+        });
+
+        if (session) {
+          await db
+            .update(sessions)
+            .set({
+              email: data.email ?? session.email,
+              completedAt: data.type === 'complete' ? new Date() : session.completedAt,
+              utmParams: data.utm ?? session.utmParams,
+            })
+            .where(eq(sessions.id, session.id));
+        }
+
+        console.log(`[Funnel ${data.type}] session=${data.session_id} email=${data.email ? '***' : 'n/a'}`);
+        break;
+      }
+
+      default:
+        console.log(`[Funnel Event] Unknown type: ${data.type}`);
     }
 
-    return NextResponse.json({ success: true, eventId: filename });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error storing funnel response:', error);
-    return NextResponse.json(
-      { error: 'Failed to store response' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to store response' }, { status: 500 });
   }
 }
 
-// GET endpoint to retrieve responses (for admin dashboard)
+// GET endpoint — retrieve sessions & responses for admin
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type'); // Filter by event type
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const funnelSlug = searchParams.get('funnel');
+    const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Ensure directory exists
-    await fs.mkdir(RESPONSES_DIR, { recursive: true });
+    // Build query
+    let whereClause;
+    if (funnelSlug) {
+      const funnel = await db.query.funnels.findFirst({
+        where: eq(funnels.slug, funnelSlug),
+      });
+      if (funnel) {
+        whereClause = eq(sessions.funnelId, funnel.id);
+      }
+    }
 
-    // Read all response files
-    const files = await fs.readdir(RESPONSES_DIR);
-    const jsonFiles = files
-      .filter((f) => f.endsWith('.json'))
-      .filter((f) => !type || f.startsWith(`${type}_`))
-      .sort()
-      .reverse()
-      .slice(0, limit);
-
-    const responses = await Promise.all(
-      jsonFiles.map(async (file) => {
-        const content = await fs.readFile(path.join(RESPONSES_DIR, file), 'utf-8');
-        return JSON.parse(content);
-      })
-    );
+    const results = await db.query.sessions.findMany({
+      where: whereClause,
+      orderBy: [desc(sessions.startedAt)],
+      limit,
+      with: {
+        responses: true,
+      },
+    });
 
     return NextResponse.json({
-      count: responses.length,
-      responses,
+      count: results.length,
+      sessions: results,
     });
   } catch (error) {
     console.error('Error reading funnel responses:', error);
-    return NextResponse.json(
-      { error: 'Failed to read responses' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to read responses' }, { status: 500 });
   }
 }
