@@ -34,7 +34,13 @@ When this skill is invoked, follow these steps:
 
 ### Step 1: Project Intake
 
-Ask the Originator these 10 questions. Present them conversationally, one at a time or in logical groups:
+Ask the Originator these 10 questions **ONE AT A TIME**. Wait for their response to each question before moving to the next one. Track your progress through the intake process.
+
+**Important:**
+- Only ask ONE question per response
+- Do not proceed to the next question until the user has answered the current one
+- If the user's answer is unclear or incomplete, clarify before moving forward
+- Keep track of which questions have been answered
 
 **Q1: What are you selling?**
 *(Free text response)*
