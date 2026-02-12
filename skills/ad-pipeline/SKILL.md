@@ -1,30 +1,33 @@
 ---
 name: ad-pipeline
-version: 0.1.0
-description: Generate Meta ad concepts from product ideas - handles intake, audience inference, and creative ideation
+version: 0.2.0
+description: Generate Meta ad concepts from product ideas — with Gemini image generation and DB persistence via MCP tools
 ---
 
 # Ad Creative Pipeline Skill
 
-This skill helps Originators create Meta (Facebook/Instagram) ad concepts from product descriptions. It handles project intake, infers audience targeting, and generates multiple ad creative concepts.
+This skill helps Originators create Meta (Facebook/Instagram) ad concepts from product descriptions. It handles project intake, infers audience targeting, generates ad creative concepts, creates images with Gemini 3 Pro, and persists everything to the database via MCP tools.
 
 ## What This Skill Does
 
-Takes a product idea and generates ready-to-use ad concepts including:
+Takes a product idea and generates ready-to-use ad creatives including:
 - Audience targeting recommendations
 - Brand tone and messaging strategy
 - 3-5 distinct ad concepts with headlines, body copy, and CTAs
+- AI-generated images for each concept (via Gemini 3 Pro)
+- Everything stored in the database and images on Vercel Blob
 
-## What This Skill Does NOT Do (Yet)
+## Prerequisites
 
-- Image generation via Gemini
-- Publishing to Meta Marketing API
-- Performance tracking
-- Campaign management
+The `funnel-creator` MCP server must be configured. It provides the following tools:
+- `create_project` — persist project + intake data
+- `add_ad_concepts` — batch insert ad concepts
+- `generate_ad_image` — generate image with Gemini and upload to Vercel Blob
+- `get_project` / `list_projects` — retrieve project data
 
 ## How to Use
 
-Run `/ad-pipeline` to start a new ad project. Claude will guide you through the intake questions and generate ad concepts.
+Run `/ad-pipeline` to start a new ad project.
 
 ---
 
@@ -34,13 +37,12 @@ When this skill is invoked, follow these steps:
 
 ### Step 1: Project Intake
 
-Ask the Originator these 10 questions **ONE AT A TIME**. Wait for their response to each question before moving to the next one. Track your progress through the intake process.
+Ask the Originator these 10 questions **ONE AT A TIME**. Wait for their response to each question before moving to the next one.
 
 **Important:**
 - Only ask ONE question per response
 - Do not proceed to the next question until the user has answered the current one
 - If the user's answer is unclear or incomplete, clarify before moving forward
-- Keep track of which questions have been answered
 
 **Q1: What are you selling?**
 *(Free text response)*
@@ -125,11 +127,13 @@ Create 3-5 distinct ad concepts, each with a different angle or hook. For each c
 
 **CTA:** *(Clear action, matches Q3 response — e.g., "Join Waitlist", "Learn More", "Shop Now")*
 
-**Visual Direction:** *(Brief description of what the image should show — setting, subjects, mood, style)*
+**Visual Direction:** *(Brief description of what the image should show)*
+
+**Image Prompt:** *(Detailed, specific prompt for Gemini image generation. Include: subject, composition, camera angle, lighting, color palette, mood, style (photorealistic/lifestyle/studio), and text overlays if any. Be very specific.)*
 
 **Why This Works:** *(1-2 sentences explaining the psychological hook or marketing principle)*
 
-### Example Output Format:
+### Example Output:
 
 ```
 ## Concept 1: Peace of Mind Between Visits
@@ -142,9 +146,11 @@ Create 3-5 distinct ad concepts, each with a different angle or hook. For each c
 
 **CTA:** Join the Waitlist
 
-**Visual Direction:** Close-up of expectant mother looking at her reflection with soft, reassuring lighting. Mirror display shows simple, calm health metrics. Color palette: soft blues and warm whites.
+**Visual Direction:** Expectant mother looking at her reflection with calm health metrics displayed.
 
-**Why This Works:** Speaks directly to the emotional pain point (worry during pregnancy) and positions the product as the solution. Creates urgency through emotional resonance rather than scarcity.
+**Image Prompt:** A pregnant woman in her late 20s standing in front of a modern bathroom mirror, soft morning light streaming in from the left. The mirror displays minimal, elegant health metrics in a soft blue-green UI overlay — heart rate, baby movement indicator. She is smiling gently, wearing a comfortable white top. The bathroom is modern and bright with marble countertop. Photorealistic style, warm and reassuring mood. Shallow depth of field focused on her face and the mirror. Aspect ratio 1:1.
+
+**Why This Works:** Speaks directly to the emotional pain point (worry during pregnancy) and positions the product as the solution.
 ```
 
 ### Step 4: Iteration
@@ -154,65 +160,46 @@ After presenting the concepts, ask:
 - "Should I adjust tone, angle, or messaging for any of these?"
 - "Would you like me to generate additional concepts with different approaches?"
 
-Allow the Originator to:
-- Request revisions to specific concepts
-- Ask for more concepts exploring different angles
-- Combine elements from multiple concepts
-- Request longer or shorter copy
+Allow the Originator to revise, combine, or request more concepts.
 
-### Step 5: Save Project Context
+### Step 5: Save to Database
 
-Once the Originator is satisfied, summarize the approved concepts and save them to a project file:
+Once the Originator is satisfied with the concepts:
 
-Create `/Users/trevoruptain/funnel-creator/projects/ad-pipeline/[project-name]/intake.json` with:
-```json
-{
-  "project_name": "[from Q1]",
-  "created_at": "[timestamp]",
-  "intake": {
-    "product": "[Q1 answer]",
-    "audience": "[Q2 answer]",
-    "objective": "[Q3 answer]",
-    "link": "[Q4 answer]",
-    "has_logo": "[Q5 answer]",
-    "brand_colors": "[Q6 answer]",
-    "references": "[Q7 answer]",
-    "budget": "[Q8 answer]",
-    "placements": "[Q9 answer]",
-    "geography": "[Q10 answer]"
-  },
-  "inferred": {
-    "audience_profile": "[from Step 2]",
-    "targeting_strategy": "[from Step 2]",
-    "brand_tone": "[from Step 2]"
-  },
-  "concepts": [
-    {
-      "concept_number": 1,
-      "angle_name": "[name]",
-      "angle": "[description]",
-      "headline": "[text]",
-      "body_copy": "[text]",
-      "cta": "[text]",
-      "visual_direction": "[description]",
-      "why_this_works": "[explanation]"
-    }
-  ]
-}
-```
+**5a.** Call `create_project` with:
+- `name`: Project name
+- `product_description`: Q1 answer
+- `target_audience`: Q2 answer
+- `intake`: All 10 answers as an object
+- `inferred`: The audience profile, targeting strategy, and brand tone from Step 2
 
-Inform the Originator that their project has been saved and they can iterate on it later by referencing the project name.
+**5b.** Call `add_ad_concepts` with the `project_id` from 5a and all approved concepts. Each concept should include the `image_prompt` field.
+
+**5c.** For each concept, call `generate_ad_image` with:
+- `ad_concept_id`: The concept ID from 5b
+- `prompt`: The `image_prompt` from the concept
+- `aspect_ratio`: Choose based on placement — `1:1` for feed, `9:16` for stories/reels
+
+**5d.** Call `get_project` to confirm everything was saved, and present the final project summary with image URLs to the Originator.
+
+### Step 6: Next Steps
+
+Inform the Originator:
+- Their project has been saved to the database
+- Images are stored on Vercel Blob and accessible via the blob URLs
+- They can retrieve their project anytime via the `get_project` or `list_projects` MCP tools
+- The data team can access project data via the `/api/data/projects` endpoint
 
 ---
 
 ## Key Principles
 
 1. **Infer intelligently** — Don't ask what you can deduce from Q1 and Q2
-2. **Show your reasoning** — Explain why you inferred certain audience traits or chose specific angles
-3. **Diversity of concepts** — Each concept should explore a meaningfully different psychological trigger or marketing approach
+2. **Show your reasoning** — Explain why you inferred certain audience traits
+3. **Diversity of concepts** — Each concept should explore a different psychological trigger
 4. **Mobile-first copy** — Keep body text concise and scannable
-5. **Match the voice** — Tone should align with both the product and the target audience
-6. **Evidence-based** — Reference known marketing principles when explaining why concepts work
+5. **Specific image prompts** — Be extremely detailed in prompts for Gemini; vague prompts produce generic images
+6. **Match the voice** — Tone should align with both the product and the target audience
 
 ---
 
@@ -221,10 +208,9 @@ Inform the Originator that their project has been saved and they can iterate on 
 - Generic headlines that could apply to any product
 - Body copy that just repeats the headline
 - Mismatched tone (e.g., casual language for serious medical products)
-- All concepts using the same angle (e.g., all problem-focused or all benefit-focused)
+- All concepts using the same angle
 - CTAs that don't match the stated objective (Q3)
-- Overly technical language for consumer audiences
-- Vague visual directions that don't guide creative execution
+- Vague image prompts (e.g., "a woman using the product" — instead specify lighting, angle, setting, colors)
 
 ---
 
@@ -233,6 +219,6 @@ Inform the Originator that their project has been saved and they can iterate on 
 At the end of this skill execution, the Originator should have:
 1. Clear understanding of their target audience
 2. 3-5 distinct ad concepts ready for creative execution
-3. Confidence in the strategic rationale behind each concept
-4. Saved project file for future iteration
+3. AI-generated images for each concept stored on Vercel Blob
+4. Everything persisted in the database for retrieval
 5. Next steps clearly communicated

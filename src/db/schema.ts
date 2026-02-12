@@ -14,9 +14,35 @@ export const stepTypeEnum = pgEnum('step_type', [
     'result',
 ]);
 
+export const adConceptStatusEnum = pgEnum('ad_concept_status', [
+    'draft',
+    'approved',
+    'generated',
+]);
+
+export const adImageStatusEnum = pgEnum('ad_image_status', [
+    'pending',
+    'generated',
+    'failed',
+]);
+
+// ── Projects ─────────────────────────────────────────────────────────
+export const projects = pgTable('projects', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    productDescription: text('product_description').notNull(),
+    targetAudience: text('target_audience').notNull(),
+    intake: jsonb('intake'),                         // all 10 intake answers
+    inferred: jsonb('inferred'),                     // audience, targeting, brand tone
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ── Funnels ──────────────────────────────────────────────────────────
 export const funnels = pgTable('funnels', {
     id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
     slug: text('slug').notNull().unique(),           // e.g. "maternal-fetal-399-v1"
     name: text('name').notNull(),
     version: text('version'),
@@ -74,8 +100,43 @@ export const stepViews = pgTable('step_views', {
     viewedAt: timestamp('viewed_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Ad Concepts ──────────────────────────────────────────────────────
+export const adConcepts = pgTable('ad_concepts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    angleName: text('angle_name').notNull(),
+    angle: text('angle').notNull(),
+    headline: text('headline').notNull(),
+    bodyCopy: text('body_copy').notNull(),
+    cta: text('cta').notNull(),
+    visualDirection: text('visual_direction').notNull(),
+    imagePrompt: text('image_prompt'),               // detailed prompt for image gen
+    whyThisWorks: text('why_this_works'),
+    status: adConceptStatusEnum('status').notNull().default('draft'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Ad Images ────────────────────────────────────────────────────────
+export const adImages = pgTable('ad_images', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    adConceptId: uuid('ad_concept_id').notNull().references(() => adConcepts.id, { onDelete: 'cascade' }),
+    prompt: text('prompt').notNull(),
+    blobUrl: text('blob_url'),
+    blobPathname: text('blob_pathname'),
+    status: adImageStatusEnum('status').notNull().default('pending'),
+    generationParams: jsonb('generation_params'),     // aspect_ratio, model, etc.
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ── Relations (for Drizzle relational queries) ───────────────────────
-export const funnelsRelations = relations(funnels, ({ many }) => ({
+export const projectsRelations = relations(projects, ({ many }) => ({
+    funnels: many(funnels),
+    adConcepts: many(adConcepts),
+}));
+
+export const funnelsRelations = relations(funnels, ({ one, many }) => ({
+    project: one(projects, { fields: [funnels.projectId], references: [projects.id] }),
     steps: many(funnelSteps),
     sessions: many(sessions),
 }));
@@ -97,5 +158,14 @@ export const responsesRelations = relations(responses, ({ one }) => ({
 
 export const stepViewsRelations = relations(stepViews, ({ one }) => ({
     session: one(sessions, { fields: [stepViews.sessionId], references: [sessions.id] }),
+}));
+
+export const adConceptsRelations = relations(adConcepts, ({ one, many }) => ({
+    project: one(projects, { fields: [adConcepts.projectId], references: [projects.id] }),
+    images: many(adImages),
+}));
+
+export const adImagesRelations = relations(adImages, ({ one }) => ({
+    adConcept: one(adConcepts, { fields: [adImages.adConceptId], references: [adConcepts.id] }),
 }));
 

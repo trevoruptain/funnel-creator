@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__funnel-creator__create_project",
+      "mcp__funnel-creator__add_ad_concepts",
+      "mcp__funnel-creator__generate_ad_image",
+      "mcp__funnel-creator__get_project"
+    ]
+  }
+}
