@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useFunnel } from '../FunnelContext';
 import type { CheckboxesStep } from '@/types/funnel';
+import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { useFunnel } from '../FunnelContext';
 
 interface Props {
   step: CheckboxesStep;
@@ -16,13 +16,11 @@ export function CheckboxesStepComponent({ step }: Props) {
   );
 
   const toggleOption = (optionId: string) => {
-    setSelected((prev) => {
-      const newSelected = prev.includes(optionId)
-        ? prev.filter((id) => id !== optionId)
-        : [...prev, optionId];
-      setResponse(step.id, newSelected);
-      return newSelected;
-    });
+    const newSelected = selected.includes(optionId)
+      ? selected.filter((id) => id !== optionId)
+      : [...selected, optionId];
+    setSelected(newSelected);
+    setResponse(step.id, newSelected);
   };
 
   const canContinue =
