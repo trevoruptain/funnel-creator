@@ -175,15 +175,39 @@ Once the Originator is satisfied with the concepts:
 
 **5b.** Call `add_ad_concepts` with the `project_id` from 5a and all approved concepts. Each concept should include the `image_prompt` field.
 
-**5c.** For each concept, generate the design specification and then the image:
+**5c.** For each concept, generate, review, and approve:
   1. Call `generate_ad_design` with the `ad_concept_id` from 5b
      - This generates structured design JSON including colors, typography, layout, and text overlays
      - Returns an `image_id` for the next step
   2. Call `generate_ad_image` with the returned `image_id`
      - This generates the actual 9:16 image using the design specification
      - Returns the Vercel Blob URL
+  3. **Present image to Originator for review:**
+     - Display the blob URL as a clickable link
+     - Show design JSON preview (colors, visual style, mood, text overlays)
+     - Ask: **"Approve this creative? Options: approve / refine / skip"**
+  4. Based on response:
+     - **approve**: Move to next concept
+     - **refine**: Ask for feedback (e.g., "make it warmer", "more professional") → proceed to Step 6
+     - **skip**: Move to next concept without saving
 
 **5d.** Call `get_project` to confirm everything was saved, and present the final project summary with image URLs to the Originator.
+
+### Step 6: Refinement (Optional)
+
+If the Originator wants to refine a creative:
+
+**6a.** Call `refine_ad_design` with:
+- `image_id`: The ID of the image to refine
+- `feedback`: Natural language feedback (e.g., "make it warmer", "more vibrant colors", "more professional tone")
+
+**6b.** Call `regenerate_ad_image` with the same `image_id`
+- This regenerates the image using the refined design JSON
+- Returns new blob URL
+
+**6c.** Present the regenerated image and ask for approval again
+
+**6d.** Repeat refinement cycle as needed until approved
 
 ### Step 6: Next Steps
 

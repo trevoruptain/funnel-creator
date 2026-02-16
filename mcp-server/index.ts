@@ -452,7 +452,9 @@ server.tool(
             generated_images: p.adConcepts.reduce(
                 (sum, c) => sum + c.images.filter(i => i.status === 'generated').length, 0
             ),
-        }));
+        }))
+
+            ;
 
         return {
             content: [{
@@ -463,7 +465,237 @@ server.tool(
     }
 );
 
-// ── Start ────────────────────────────────────────────────────────────
+// ── Tool: refine_ad_design ──────────────────────────────────────────
+server.tool(
+    'refine_ad_design',
+    'Refine design JSON based on feedback (e.g., "make it warmer", "more professional")',
+    {
+        image_id: z.string().uuid().describe('Image ID to refine'),
+        feedback: z.string().describe('Natural language feedback'),
+    },
+    async ({ image_id, feedback }) => {
+        const image = await db.query.adImages.findFirst({
+            where: eq(schema.adImages.id, image_id),
+            with: { adConcept: { with: { project: true } } },
+        });
+
+        if (!image?.designJson) {
+            return { content: [{ type: 'text' as const, text: 'Error: Image or design JSON not found' }] };
+        }
+
+        const currentDesign = image.designJson as any;
+        const concept = image.adConcept;
+
+        const refinementPrompt = `
+Refine this Meta ad design based on user feedback.
+
+CURRENT DESIGN:
+${JSON.stringify(currentDesign, null, 2)}
+
+CONCEPT: ${concept.headline}
+${concept.visualDirection}
+
+FEEDBACK: "${feedback}"
+
+Adjust the design JSON to incorporate this feedback. Focus on colors, visual style, typography, and text overlays as relevant.
+        `.trim();
+
+        const designSchema = {
+            type: 'object',
+            properties: {
+                platform: { type: 'string', enum: ['meta'] },
+                aspectRatio: { type: 'string', enum: ['9:16'] },
+                colors: {
+                    type: 'object',
+                    properties: {
+                        primary: { type: 'string' },
+                        secondary: { type: 'string' },
+                        accent: { type: 'string' },
+                        background: { type: 'string' },
+                        text: { type: 'string' },
+                    },
+                    required: ['primary', 'secondary', 'accent', 'background', 'text'],
+                },
+                typography: {
+                    type: 'object',
+                    properties: {
+                        headline: {
+                            type: 'object',
+                            properties: {
+                                font: { type: 'string' },
+                                size: { type: 'string' },
+                                weight: { type: 'string' },
+                            },
+                            required: ['font', 'size', 'weight'],
+                        },
+                        subtext: {
+                            type: 'object',
+                            properties: {
+                                font: { type: 'string' },
+                                size: { type: 'string' },
+                                weight: { type: 'string' },
+                            },
+                            required: ['font', 'size', 'weight'],
+                        },
+                    },
+                    required: ['headline', 'subtext'],
+                },
+                layout: {
+                    type: 'object',
+                    properties: {
+                        composition: { type: 'string' },
+                        elements: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: ['composition', 'elements'],
+                },
+                textOverlays: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            text: { type: 'string' },
+                            position: { type: 'string' },
+                            style: { type: 'string' },
+                        },
+                        required: ['text', 'position', 'style'],
+                    },
+                },
+                visualStyle: { type: 'string' },
+                mood: { type: 'string' },
+            },
+            required: ['platform', 'aspectRatio', 'colors', 'typography', 'layout', 'textOverlays', 'visualStyle', 'mood'],
+        };
+
+        const response = await ai.models.generateContent({
+            model: GEMINI_MODELS.TEXT,
+            contents: refinementPrompt,
+            config: {
+                responseSchema: designSchema,
+                responseMimeType: 'application/json',
+            },
+        });
+
+        if (!response.text) {
+            return { content: [{ type: 'text' as const, text: 'Error: Failed to generate refined design' }] };
+        }
+
+        const refinedDesign = JSON.parse(response.text);
+
+        await db.update(schema.adImages)
+            .set({ designJson: refinedDesign })
+            .where(eq(schema.adImages.id, image_id));
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    image_id,
+                    refined_design: refinedDesign,
+                    feedback_applied: feedback,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: regenerate_ad_image ────────────────────────────────────────
+server.tool(
+    'regenerate_ad_image',
+    'Regenerate ad image using current (possibly refined) design JSON',
+    {
+        image_id: z.string().uuid().describe('Image ID to regenerate'),
+    },
+    async ({ image_id }) => {
+        const image = await db.query.adImages.findFirst({
+            where: eq(schema.adImages.id, image_id),
+            with: { adConcept: { with: { project: { columns: { slug: true } } } } },
+        });
+
+        if (!image?.designJson) {
+            return { content: [{ type: 'text' as const, text: 'Error: Image or design JSON not found' }] };
+        }
+
+        const design = image.designJson as any;
+        const concept = image.adConcept;
+
+        const enhancedPrompt = `
+Create a 9:16 Meta ad creative with the following specifications:
+
+CONCEPT: ${concept.headline}
+${concept.visualDirection}
+
+DESIGN SYSTEM:
+- Colors: Primary ${design.colors.primary}, Secondary ${design.colors.secondary}, Accent ${design.colors.accent}
+- Background: ${design.colors.background}
+- Visual Style: ${design.visualStyle}
+- Mood: ${design.mood}
+- Composition: ${design.layout.composition}
+
+TEXT OVERLAYS:
+${design.textOverlays.map((t: any) => `- "${t.text}" (${t.position}, ${t.style})`).join('\n')}
+
+REQUIREMENTS:
+- Aspect ratio: 9:16
+- High quality, professional ad creative
+- Include all text overlays as specified
+- Match the color palette exactly
+- ${design.layout.elements.join(', ')}
+
+Style: Photorealistic, premium advertising photography
+        `.trim();
+
+        const response = await ai.models.generateContent({
+            model: GEMINI_MODELS.IMAGE,
+            contents: enhancedPrompt,
+        });
+
+        const imagePart = response.candidates?.[0]?.content?.parts?.find(
+            (p: any) => p.inlineData
+        );
+
+        if (!imagePart?.inlineData?.data) {
+            await db.update(schema.adImages)
+                .set({ status: 'failed', prompt: enhancedPrompt })
+                .where(eq(schema.adImages.id, image_id));
+            return { content: [{ type: 'text' as const, text: 'Error: Image generation failed' }] };
+        }
+
+        const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
+        const pathname = `ads/${concept.project.slug}/${image_id}-${Date.now()}.png`;
+
+        const blob = await put(pathname, buffer, {
+            access: 'public',
+            contentType: 'image/png',
+        });
+
+        await db.update(schema.adImages)
+            .set({
+                prompt: enhancedPrompt,
+                blobUrl: blob.url,
+                blobPathname: blob.pathname,
+                status: 'generated',
+                generationParams: { aspectRatio: '9:16', model: GEMINI_MODELS.IMAGE },
+            })
+            .where(eq(schema.adImages.id, image_id));
+
+        await db.update(schema.adConcepts)
+            .set({ status: 'generated' })
+            .where(eq(schema.adConcepts.id, concept.id));
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    image_id,
+                    blob_url: blob.url,
+                    pathname,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Start Server ─────────────────────────────────────────────────────
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
