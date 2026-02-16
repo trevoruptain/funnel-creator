@@ -175,10 +175,13 @@ Once the Originator is satisfied with the concepts:
 
 **5b.** Call `add_ad_concepts` with the `project_id` from 5a and all approved concepts. Each concept should include the `image_prompt` field.
 
-**5c.** For each concept, call `generate_ad_image` with:
-- `ad_concept_id`: The concept ID from 5b
-- `prompt`: The `image_prompt` from the concept
-- `aspect_ratio`: Choose based on placement — `1:1` for feed, `9:16` for stories/reels
+**5c.** For each concept, generate the design specification and then the image:
+  1. Call `generate_ad_design` with the `ad_concept_id` from 5b
+     - This generates structured design JSON including colors, typography, layout, and text overlays
+     - Returns an `image_id` for the next step
+  2. Call `generate_ad_image` with the returned `image_id`
+     - This generates the actual 9:16 image using the design specification
+     - Returns the Vercel Blob URL
 
 **5d.** Call `get_project` to confirm everything was saved, and present the final project summary with image URLs to the Originator.
 

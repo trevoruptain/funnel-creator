@@ -10,6 +10,7 @@ import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { z } from 'zod';
 import * as schema from '../src/db/schema.js';
+import { GEMINI_MODELS } from './constants.js';
 
 // ── Setup ────────────────────────────────────────────────────────────
 const sql = neon(process.env.DATABASE_URL!);
@@ -124,33 +125,209 @@ server.tool(
     }
 );
 
-// ── Tool: generate_ad_image ──────────────────────────────────────────
+// ── Tool: generate_ad_design ───────────────────────────────────────────
 server.tool(
-    'generate_ad_image',
-    'Generate an ad image using Gemini 3 Pro, upload to Vercel Blob, and save to DB. Returns the blob URL.',
+    'generate_ad_design',
+    'Generate structured design JSON for an ad creative using Gemini. All images are 9:16 aspect ratio.',
     {
-        ad_concept_id: z.string().uuid().describe('Ad concept UUID to generate image for'),
-        prompt: z.string().describe('Image generation prompt (use the image_prompt from the concept)'),
-        aspect_ratio: z.enum(['1:1', '9:16', '4:5', '16:9']).default('1:1')
-            .describe('Aspect ratio - 1:1 for feed, 9:16 for stories/reels, 4:5 for portrait feed'),
+        ad_concept_id: z.string().uuid().describe('Ad concept UUID to generate design for'),
     },
-    async ({ ad_concept_id, prompt, aspect_ratio }) => {
-        // 1. Get concept + project for naming
+    async ({ ad_concept_id }) => {
+        // 1. Get concept + project for context
         const concept = await db.query.adConcepts.findFirst({
             where: eq(schema.adConcepts.id, ad_concept_id),
-            with: { project: { columns: { slug: true } } },
+            with: { project: true },
         });
 
         if (!concept) {
             return { content: [{ type: 'text' as const, text: 'Error: Concept not found' }] };
         }
 
-        // 2. Generate image with Gemini
-        const fullPrompt = `${prompt}\n\nAspect ratio: ${aspect_ratio}. High quality, professional ad creative.`;
+        // 2. Define design schema for structured output
+        const designSchema = {
+            type: 'object',
+            properties: {
+                platform: { type: 'string', enum: ['meta'] },
+                aspectRatio: { type: 'string', enum: ['9:16'] },
+                colors: {
+                    type: 'object',
+                    properties: {
+                        primary: { type: 'string', description: 'Primary brand color (hex)' },
+                        secondary: { type: 'string', description: 'Secondary color (hex)' },
+                        accent: { type: 'string', description: 'Accent color for highlights (hex)' },
+                        background: { type: 'string', description: 'Background color (hex)' },
+                        text: { type: 'string', description: 'Text color (hex)' },
+                    },
+                    required: ['primary', 'secondary', 'accent', 'background', 'text'],
+                },
+                typography: {
+                    type: 'object',
+                    properties: {
+                        headline: {
+                            type: 'object',
+                            properties: {
+                                font: { type: 'string' },
+                                size: { type: 'string' },
+                                weight: { type: 'string' },
+                            },
+                            required: ['font', 'size', 'weight'],
+                        },
+                        subtext: {
+                            type: 'object',
+                            properties: {
+                                font: { type: 'string' },
+                                size: { type: 'string' },
+                                weight: { type: 'string' },
+                            },
+                            required: ['font', 'size', 'weight'],
+                        },
+                    },
+                    required: ['headline', 'subtext'],
+                },
+                layout: {
+                    type: 'object',
+                    properties: {
+                        composition: { type: 'string', description: 'e.g., center-focused, rule-of-thirds' },
+                        elements: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: ['composition', 'elements'],
+                },
+                textOverlays: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            text: { type: 'string' },
+                            position: { type: 'string' },
+                            style: { type: 'string' },
+                        },
+                        required: ['text', 'position', 'style'],
+                    },
+                },
+                visualStyle: { type: 'string', description: 'e.g., modern-minimalist, vibrant-lifestyle' },
+                mood: { type: 'string', description: 'e.g., aspirational, trustworthy' },
+            },
+            required: ['platform', 'aspectRatio', 'colors', 'typography', 'layout', 'textOverlays', 'visualStyle', 'mood'],
+        };
+
+        // 3. Generate design JSON with Gemini
+        const designPrompt = `
+You are an expert Meta ad designer. Create a detailed design specification for this ad concept:
+
+PROJECT: ${concept.project.name}
+TARGET AUDIENCE: ${concept.project.targetAudience}
+
+CONCEPT:
+- Angle: ${concept.angle}
+- Headline: ${concept.headline}
+- Body Copy: ${concept.bodyCopy}
+- CTA: ${concept.cta}
+- Visual Direction: ${concept.visualDirection}
+
+Generate a complete design specification including:
+- Color palette (use brand colors if available in project, otherwise create a cohesive palette)
+- Typography choices (modern, readable fonts)
+- Layout composition
+- Text overlay placements (headline, CTA, etc.)
+- Visual style and mood
+
+The design should be optimized for 9:16 aspect ratio (Stories/Reels) and feel premium and engaging.
+        `.trim();
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview',
-            contents: fullPrompt,
+            model: GEMINI_MODELS.TEXT,
+            contents: designPrompt,
+            config: {
+                responseSchema: designSchema,
+                responseMimeType: 'application/json',
+            },
+        });
+
+        if (!response.text) {
+            return { content: [{ type: 'text' as const, text: 'Error: Gemini did not return design JSON.' }] };
+        }
+
+        const designJson = JSON.parse(response.text);
+
+        // 4. Create pending image record with design JSON
+        const [image] = await db.insert(schema.adImages).values({
+            adConceptId: ad_concept_id,
+            designJson,
+            prompt: '', // Will be filled during image generation
+            status: 'pending',
+            generationParams: { aspectRatio: '9:16' },
+        }).returning({ id: schema.adImages.id });
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ image_id: image.id, design: designJson }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: generate_ad_image ──────────────────────────────────────────
+server.tool(
+    'generate_ad_image',
+    'Generate ad image from design JSON using Gemini 3 Pro. Must call generate_ad_design first. Always generates 9:16 aspect ratio.',
+    {
+        image_id: z.string().uuid().describe('Image ID from generate_ad_design'),
+    },
+    async ({ image_id }) => {
+        // 1. Get image record with design JSON
+        const image = await db.query.adImages.findFirst({
+            where: eq(schema.adImages.id, image_id),
+            with: {
+                adConcept: {
+                    with: { project: { columns: { slug: true } } },
+                },
+            },
+        });
+
+        if (!image) {
+            return { content: [{ type: 'text' as const, text: 'Error: Image not found' }] };
+        }
+
+        if (!image.designJson) {
+            return { content: [{ type: 'text' as const, text: 'Error: Image must have design JSON. Call generate_ad_design first.' }] };
+        }
+
+        // 2. Build enhanced prompt from design JSON
+        const design = image.designJson as any;
+        const concept = image.adConcept;
+        const aspectRatio = '9:16';
+
+        const enhancedPrompt = `
+Create a ${aspectRatio} Meta ad creative with the following specifications:
+
+CONCEPT: ${concept.headline}
+${concept.visualDirection}
+
+DESIGN SYSTEM:
+- Colors: Primary ${design.colors.primary}, Secondary ${design.colors.secondary}, Accent ${design.colors.accent}
+- Background: ${design.colors.background}
+- Visual Style: ${design.visualStyle}
+- Mood: ${design.mood}
+- Composition: ${design.layout.composition}
+
+TEXT OVERLAYS:
+${design.textOverlays.map((t: any) => `- "${t.text}" (${t.position}, ${t.style})`).join('\n')}
+
+REQUIREMENTS:
+- Aspect ratio: ${aspectRatio}
+- High quality, professional ad creative
+- Include all text overlays as specified
+- Match the color palette exactly
+- ${design.layout.elements.join(', ')}
+
+Style: Photorealistic, premium advertising photography
+        `.trim();
+
+        // 3. Generate image with Gemini
+        const response = await ai.models.generateContent({
+            model: GEMINI_MODELS.IMAGE,
+            contents: enhancedPrompt,
         });
 
         const imagePart = response.candidates?.[0]?.content?.parts?.find(
@@ -158,47 +335,46 @@ server.tool(
         );
 
         if (!imagePart?.inlineData?.data) {
-            // Save as failed
-            await db.insert(schema.adImages).values({
-                adConceptId: ad_concept_id,
-                prompt: fullPrompt,
-                status: 'failed',
-                generationParams: { aspect_ratio, model: 'gemini-3-pro-image-preview' },
-            });
+            // Update as failed
+            await db.update(schema.adImages)
+                .set({ status: 'failed', prompt: enhancedPrompt })
+                .where(eq(schema.adImages.id, image_id));
             return { content: [{ type: 'text' as const, text: 'Error: Gemini did not return an image.' }] };
         }
 
         const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
 
-        // 3. Upload to Vercel Blob
-        const pathname = `ads/${concept.project.slug}/${ad_concept_id}-${Date.now()}.png`;
+        // 4. Upload to Vercel Blob
+        const pathname = `ads/${concept.project.slug}/${image_id}-${Date.now()}.png`;
         const blob = await put(pathname, buffer, {
             access: 'public',
             contentType: 'image/png',
         });
 
-        // 4. Save to DB
-        const [image] = await db.insert(schema.adImages).values({
-            adConceptId: ad_concept_id,
-            prompt: fullPrompt,
-            blobUrl: blob.url,
-            blobPathname: blob.pathname,
-            status: 'generated',
-            generationParams: { aspect_ratio, model: 'gemini-3-pro-image-preview' },
-        }).returning({ id: schema.adImages.id, blobUrl: schema.adImages.blobUrl });
+        // 5. Update image record
+        await db.update(schema.adImages)
+            .set({
+                prompt: enhancedPrompt,
+                blobUrl: blob.url,
+                blobPathname: blob.pathname,
+                status: 'generated',
+                generationParams: { aspectRatio: '9:16', model: GEMINI_MODELS.IMAGE },
+            })
+            .where(eq(schema.adImages.id, image_id));
 
-        // 5. Update concept status
+        // 6. Update concept status
         await db.update(schema.adConcepts)
             .set({ status: 'generated' })
-            .where(eq(schema.adConcepts.id, ad_concept_id));
+            .where(eq(schema.adConcepts.id, concept.id));
 
         return {
             content: [{
                 type: 'text' as const,
                 text: JSON.stringify({
-                    image_id: image.id,
-                    blob_url: image.blobUrl,
+                    image_id,
+                    blob_url: blob.url,
                     pathname,
+                    design: design,
                 }, null, 2),
             }],
         };

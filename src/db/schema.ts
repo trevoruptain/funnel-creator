@@ -121,6 +121,7 @@ export const adConcepts = pgTable('ad_concepts', {
 export const adImages = pgTable('ad_images', {
     id: uuid('id').defaultRandom().primaryKey(),
     adConceptId: uuid('ad_concept_id').notNull().references(() => adConcepts.id, { onDelete: 'cascade' }),
+    designJson: jsonb('design_json'),              // structured design spec (colors, typography, layout, text overlays)
     prompt: text('prompt').notNull(),
     blobUrl: text('blob_url'),
     blobPathname: text('blob_pathname'),
