@@ -2,15 +2,16 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useFunnel } from './FunnelContext';
-import { WelcomeStepComponent } from './steps/WelcomeStep';
-import { MultipleChoiceStepComponent } from './steps/MultipleChoiceStep';
+import { ProgressBar } from './ProgressBar';
 import { CheckboxesStepComponent } from './steps/CheckboxesStep';
+import { CheckoutStepComponent } from './steps/CheckoutStep';
 import { EmailStepComponent } from './steps/EmailStep';
 import { InfoCardStepComponent } from './steps/InfoCardStep';
-import { ResultStepComponent } from './steps/ResultStep';
+import { MultipleChoiceStepComponent } from './steps/MultipleChoiceStep';
 import { NumberPickerStepComponent } from './steps/NumberPickerStep';
-import { CheckoutStepComponent } from './steps/CheckoutStep';
-import { ProgressBar } from './ProgressBar';
+import { ResultStepComponent } from './steps/ResultStep';
+import { TextInputStepComponent } from './steps/TextInputStep';
+import { WelcomeStepComponent } from './steps/WelcomeStep';
 
 const slideVariants = {
   enter: (direction: number) => ({
@@ -34,7 +35,7 @@ const fadeVariants = {
 };
 
 export function FunnelRenderer() {
-  const { currentStep, currentStepIndex, config, progress } = useFunnel();
+  const { currentStep, currentStepIndex, config, progress, goPrev } = useFunnel();
 
   // Track direction for slide animation
   const direction = 1; // Always forward for now
@@ -87,6 +88,8 @@ export function FunnelRenderer() {
         return <CheckboxesStepComponent step={currentStep} />;
       case 'email':
         return <EmailStepComponent step={currentStep} />;
+      case 'text-input':
+        return <TextInputStepComponent step={currentStep} />;
       case 'info-card':
         return <InfoCardStepComponent step={currentStep} />;
       case 'number-picker':
@@ -106,6 +109,9 @@ export function FunnelRenderer() {
     currentStep.type === 'result' ||
     currentStep.type === 'checkout';
 
+  // Hide back button on welcome, result, and checkout steps
+  const hideBackButton = hideProgressBar || currentStepIndex === 0;
+
   return (
     <div
       className="funnel-container min-h-screen flex flex-col"
@@ -116,6 +122,36 @@ export function FunnelRenderer() {
         <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-4">
           <ProgressBar progress={progress} />
         </div>
+      )}
+
+      {/* Back button */}
+      {!hideBackButton && (
+        <button
+          onClick={goPrev}
+          className="fixed top-4 left-4 z-50 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-105"
+          style={{
+            backgroundColor: 'var(--funnel-surface)',
+            color: 'var(--funnel-text-primary)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M10 12L6 8L10 4"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back
+        </button>
       )}
 
       {/* Step content with animation */}

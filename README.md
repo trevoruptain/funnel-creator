@@ -17,11 +17,10 @@ BLOB_READ_WRITE_TOKEN=your-vercel-blob-token
 GOOGLE_API_KEY=your-gemini-api-key
 ```
 
-Push the schema and seed funnel data:
+Push the schema:
 
 ```bash
 npm run db:push
-npm run db:seed
 ```
 
 Run locally:
@@ -29,6 +28,53 @@ Run locally:
 ```bash
 npm run dev
 ```
+
+## Editing Funnels
+
+Funnels are stored in the database and loaded dynamically. To edit funnel content:
+
+### Using Drizzle Studio (Recommended)
+
+1. Start the database GUI:
+   ```bash
+   npm run db:studio
+   ```
+
+2. Navigate to the `funnel_steps` table
+
+3. Edit the `config` JSONB column for any step:
+   - Title, subtitle, descriptions
+   - Button text
+   - Options for multiple choice/checkboxes
+   - Images and styling
+   - Any step-specific configuration
+
+4. Changes take effect immediately (refresh the browser)
+
+### Using SQL
+
+For bulk updates, you can run SQL scripts:
+
+```bash
+psql $DATABASE_URL -f your-changes.sql
+```
+
+Example: Update a welcome step title:
+```sql
+UPDATE funnel_steps
+SET config = jsonb_set(config, '{title}', '"New Title"')
+WHERE step_id = 'welcome' AND funnel_id = (
+  SELECT id FROM funnels WHERE slug = 'your-funnel-slug'
+);
+```
+
+### Funnel Selection
+
+Load specific funnels via URL parameter:
+- `http://localhost:3000/?funnel=maternal-fetal-399`
+- `http://localhost:3000/?funnel=another-funnel-slug`
+
+Default funnel (when no parameter): `maternal-fetal-399`
 
 ## MCP Server (Claude Code)
 
@@ -59,7 +105,6 @@ Use the `/ad-pipeline` skill to run the full intake → concepts → image gen w
 | `npm run dev` | Start dev server |
 | `npm run build` | Production build |
 | `npm run db:push` | Push schema to Neon |
-| `npm run db:seed` | Seed funnel configs |
 | `npm run db:studio` | Open Drizzle Studio |
 | `npm run db:generate` | Generate migrations |
 
