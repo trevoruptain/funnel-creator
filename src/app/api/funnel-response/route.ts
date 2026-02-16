@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { funnels, responses, sessions, stepViews } from '@/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { funnelSteps, funnels, responses, sessions, stepViews } from '@/db/schema';
+import { and, desc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -66,17 +66,30 @@ export async function POST(request: NextRequest) {
         });
 
         if (session) {
+          // Resolve the actual funnel step record (the UUID)
+          const funnelStep = await db.query.funnelSteps.findFirst({
+            where: and(
+              eq(funnelSteps.funnelId, session.funnelId),
+              eq(funnelSteps.stepId, data.step_id)
+            ),
+          });
+
           // Upsert — overwrite if they re-answer the same step
           await db
             .insert(responses)
             .values({
               sessionId: session.id,
+              funnelStepId: funnelStep?.id ?? null,
               stepId: data.step_id,
               value: data.response,
             })
             .onConflictDoUpdate({
               target: [responses.sessionId, responses.stepId],
-              set: { value: data.response, createdAt: new Date() },
+              set: {
+                value: data.response,
+                funnelStepId: funnelStep?.id ?? null,
+                createdAt: new Date()
+              },
             });
         }
         break;
