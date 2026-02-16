@@ -6,6 +6,7 @@ import { ProgressBar } from './ProgressBar';
 import { CheckboxesStepComponent } from './steps/CheckboxesStep';
 import { CheckoutStepComponent } from './steps/CheckoutStep';
 import { EmailStepComponent } from './steps/EmailStep';
+import { HeightPickerStepComponent } from './steps/HeightPickerStep';
 import { InfoCardStepComponent } from './steps/InfoCardStep';
 import { MultipleChoiceStepComponent } from './steps/MultipleChoiceStep';
 import { NumberPickerStepComponent } from './steps/NumberPickerStep';
@@ -93,6 +94,10 @@ export function FunnelRenderer() {
       case 'info-card':
         return <InfoCardStepComponent step={currentStep} />;
       case 'number-picker':
+        // Special case: use HeightPickerStep for height question
+        if (currentStep.id === 'height') {
+          return <HeightPickerStepComponent step={currentStep} />;
+        }
         return <NumberPickerStepComponent step={currentStep} />;
       case 'checkout':
         return <CheckoutStepComponent step={currentStep} />;
@@ -124,33 +129,31 @@ export function FunnelRenderer() {
         </div>
       )}
 
-      {/* Back button */}
+      {/* Back button - Typeform style: minimal chevron below progress bar */}
       {!hideBackButton && (
         <button
           onClick={goPrev}
-          className="fixed top-4 left-4 z-50 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-105"
+          className="fixed top-16 left-4 z-40 flex items-center gap-1 p-2 text-sm font-medium transition-all hover:bg-black/5 rounded-full"
           style={{
-            backgroundColor: 'var(--funnel-surface)',
             color: 'var(--funnel-text-primary)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
           }}
+          aria-label="Go back"
         >
           <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
             <path
-              d="M10 12L6 8L10 4"
+              d="M15 18L9 12L15 6"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-          Back
         </button>
       )}
 

@@ -17,13 +17,13 @@ SET config = jsonb_set(
   '"/aurora-mirror.png"'
 )
 WHERE step_id = 'welcome'
-  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1-v1');
 
 -- Remove logo field if it exists
 UPDATE funnel_steps
 SET config = config - 'logo'
 WHERE step_id = 'welcome'
-  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 
 -- 2. UPDATE "INTRODUCING AURORA" INFO CARD
@@ -31,7 +31,7 @@ WHERE step_id = 'welcome'
 UPDATE funnel_steps
 SET step_id = 'info-introducing-aurora'
 WHERE step_id = 'info-personalized'
-  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 -- Then update the config
 UPDATE funnel_steps
@@ -49,7 +49,7 @@ SET config = jsonb_set(
     '"/illustrations/aurora-mirror.png"'
 )
 WHERE step_id = 'info-introducing-aurora'
-  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 
 -- 3. UPDATE CHECKOUT TO BETA SIGNUP
@@ -76,7 +76,7 @@ SET config = jsonb_set(
   '["Personalized walkthrough based on your answers", "Ask your most important questions", "Receive insider access to Aurora demos", "Priority consideration for early-access", "Exclusive discounts and moving up in line"]'::jsonb
 )
 WHERE step_id = 'checkout'
-  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+  AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 
 -- 4. ADD FREE TEXT QUESTIONS
@@ -85,7 +85,7 @@ DO $$
 DECLARE
   funnel_uuid UUID;
 BEGIN
-  SELECT id INTO funnel_uuid FROM funnels WHERE slug = 'maternal-fetal-399';
+  SELECT id INTO funnel_uuid FROM funnels WHERE slug = 'maternal-fetal-399-v1';
 
   -- Insert 3 new free text question steps after email (sort_order 16, 17, 18)
   
@@ -132,27 +132,27 @@ END $$;
 -- Verify welcome step
 SELECT step_id, config->'title' as title, config->'subtitle' as subtitle, config->'image' as image
 FROM funnel_steps
-WHERE step_id = 'welcome' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+WHERE step_id = 'welcome' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 -- Verify introducing aurora
 SELECT step_id, config->'title' as title, config->'description' as description
 FROM funnel_steps
-WHERE step_id = 'info-introducing-aurora' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+WHERE step_id = 'info-introducing-aurora' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 -- Verify checkout
 SELECT step_id, config->'title' as title, config->'price' as price, config->'buttonText' as buttonText
 FROM funnel_steps
-WHERE step_id = 'checkout' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399');
+WHERE step_id = 'checkout' AND funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1');
 
 -- Verify new text input steps
 SELECT step_id, sort_order, type, config->'question' as question
 FROM funnel_steps
-WHERE funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399')
+WHERE funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1')
   AND type = 'text-input'
 ORDER BY sort_order;
 
 -- View all steps in order
 SELECT sort_order, step_id, type
 FROM funnel_steps
-WHERE funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399')
+WHERE funnel_id = (SELECT id FROM funnels WHERE slug = 'maternal-fetal-399-v1')
 ORDER BY sort_order;
