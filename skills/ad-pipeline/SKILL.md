@@ -2,6 +2,8 @@
 name: ad-pipeline
 version: 0.2.0
 description: Generate Meta ad concepts from product ideas — with Gemini image generation and DB persistence via MCP tools
+allowed-tools:
+  - AskUserQuestion
 ---
 
 # Ad Creative Pipeline Skill
@@ -37,58 +39,133 @@ When this skill is invoked, follow these steps:
 
 ### Step 1: Project Intake
 
-Ask the Originator these 10 questions **ONE AT A TIME**. Wait for their response to each question before moving to the next one.
-
-**Important:**
-- Only ask ONE question per response
-- Do not proceed to the next question until the user has answered the current one
-- If the user's answer is unclear or incomplete, clarify before moving forward
+Use the `AskUserQuestion` tool to gather intake information. For each question below, call the tool with the appropriate parameters. Present questions ONE AT A TIME, waiting for the user's response before proceeding.
 
 **Q1: What are you selling?**
-*(Free text response)*
-
-Example: "A smart mirror that monitors pregnancy health"
+```
+AskUserQuestion({
+  questions: [{
+    header: "What are you selling?",
+    options: [] // Free text - no predefined options
+  }]
+})
+```
 
 **Q2: Who is it for?**
-*(Free text response)*
-
-Example: "Pregnant women who want peace of mind between doctor visits"
+```
+AskUserQuestion({
+  questions: [{
+    header: "Who is it for? Describe your target customer.",
+    options: [] // Free text
+  }]
+})
+```
 
 **Q3: What should people do after seeing the ad?**
-*(Present as multiple choice)*
-- Sign up / join waitlist
-- Visit website
-- Buy now
-- Download app
+```
+AskUserQuestion({
+  questions: [{
+    header: "What should people do after seeing the ad?",
+    options: [
+      { label: "Sign up / join waitlist", value: "signup" },
+      { label: "Visit website", value: "visit" },
+      { label: "Buy now", value: "buy" },
+      { label: "Download app", value: "download" }
+    ]
+  }]
+})
+```
 
 **Q4: Link to send people to?**
-*(URL or "none yet")*
+```
+AskUserQuestion({
+  questions: [{
+    header: "What's the URL where you want to send people? (Or say 'none yet')",
+    options: [] // Free text
+  }]
+})
+```
 
 **Q5: Do you have a logo?**
-*(yes → ask for file path, or no)*
+```
+AskUserQuestion({
+  questions: [{
+    header: "Do you have a logo?",
+    options: [
+      { label: "Yes (I'll provide the file path)", value: "yes" },
+      { label: "No", value: "no" }
+    ]
+  }]
+})
+```
+*If yes, ask for file path in next message*
 
 **Q6: Do you have brand colors?**
-*(yes → ask for hex codes or description like "navy and gold", no → will generate palette)*
+```
+AskUserQuestion({
+  questions: [{
+    header: "Do you have brand colors?",
+    options: [
+      { label: "Yes (I'll provide hex codes or description)", value: "yes" },
+      { label: "No (generate a palette for me)", value: "no" }
+    ]
+  }]
+})
+```
+*If yes, ask for colors in next message*
 
-**Q7: Any reference images or ads you like the look of?**
-*(Optional — links, file paths, or descriptions like "like Apple ads" or "like Flo Health's Instagram")*
+**Q7: Any reference images or ads you like?**
+```
+AskUserQuestion({
+  questions: [{
+    header: "Any reference images or ads whose style you like? (Optional - URLs, descriptions, or say 'skip')",
+    options: [] // Free text
+  }]
+})
+```
 
 **Q8: Monthly ad budget?**
-*(Present as multiple choice)*
-- Under $500 (testing)
-- $500–$2,000
-- $2,000–$10,000
-- $10,000+
-- Not sure
+```
+AskUserQuestion({
+  questions: [{
+    header: "What's your monthly ad budget?",
+    options: [
+      { label: "Under $500 (testing)", value: "under-500" },
+      { label: "$500–$2,000", value: "500-2000" },
+      { label: "$2,000–$10,000", value: "2000-10000" },
+      { label: "$10,000+", value: "10000+" },
+      { label: "Not sure", value: "not-sure" }
+    ]
+  }]
+})
+```
 
 **Q9: Where to run ads?**
-*(Present as multiple choice)*
-- Instagram only
-- Facebook only
-- Both — let Meta optimize
+```
+AskUserQuestion({
+  questions: [{
+    header: "Where should these ads run?",
+    options: [
+      { label: "Instagram only", value: "instagram" },
+      { label: "Facebook only", value: "facebook" },
+      { label: "Both — let Meta optimize", value: "both" }
+    ]
+  }]
+})
+```
 
 **Q10: US only or international?**
-*(true/false — US only or expand internationally)*
+```
+AskUserQuestion({
+  questions: [{
+    header: "Geographic targeting?",
+    options: [
+      { label: "US only", value: "us-only" },
+      { label: "Expand internationally", value: "international" }
+    ]
+  }]
+})
+```
 
 ### Step 2: Analyze and Infer
 
