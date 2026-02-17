@@ -212,7 +212,7 @@ server.tool(
 
         // 3. Generate design JSON with Gemini
         const designPrompt = `
-You are an expert Meta ad designer. Create a detailed design specification for this ad concept:
+You are an expert Meta/Instagram ad designer creating scroll-stopping 9:16 creatives.
 
 PROJECT: ${concept.project.name}
 TARGET AUDIENCE: ${concept.project.targetAudience}
@@ -224,14 +224,30 @@ CONCEPT:
 - CTA: ${concept.cta}
 - Visual Direction: ${concept.visualDirection}
 
-Generate a complete design specification including:
-- Color palette (use brand colors if available in project, otherwise create a cohesive palette)
-- Typography choices (modern, readable fonts)
-- Layout composition
-- Text overlay placements (headline, CTA, etc.)
-- Visual style and mood
+Create a PREMIUM design specification optimized for Stories/Reels with:
 
-The design should be optimized for 9:16 aspect ratio (Stories/Reels) and feel premium and engaging.
+1. **Color Palette**: Vibrant, cohesive colors (NOT bland). Use gradients where appropriate.
+2. **Typography**: Modern, bold fonts for headline. Mix sizes for hierarchy.
+3. **Layout**: Choose composition that best fits this concept:
+   - Rule of thirds (dynamic, professional)
+   - Asymmetric (bold, editorial)
+   - Center-focused (only if the concept demands symmetry/balance)
+4. **Text Overlays** (critical - be VERY specific):
+   - Headline: Large, bold, positioned strategically (specify exact position)
+   - CTA: Styled as PILL BUTTON with background color, padding, rounded corners, shadow
+   - Supporting text: Include badges, small pills for features/benefits/urgency
+   - Specify shadow/glow/outline for readability
+5. **Visual Elements** to include:
+   - Gradients (top-to-bottom fade, radial glow, color overlays for depth)
+   - Geometric shapes (circles, rounded rectangles for framing key elements)
+   - Decorative elements (lines, dots, subtle patterns if they enhance the concept)
+
+6. **Composition Type** - Choose ONE based on concept angle:
+   - Product-only shot: Clean studio, floating product, macro detail (NO humans)
+   - Lifestyle shot: Human using/interacting with product, emotion visible
+   - Environment shot: Product in natural setting, atmospheric (NO humans)
+
+OUTPUT: Detailed JSON with exact positions, font specs, overlay styles, visual treatments.
         `.trim();
 
         const response = await ai.models.generateContent({
@@ -299,29 +315,31 @@ server.tool(
         const aspectRatio = '9:16';
 
         const enhancedPrompt = `
-Create a ${aspectRatio} Meta ad creative with the following specifications:
+Create a scroll-stopping ${aspectRatio} Meta/Instagram ad creative.
 
 CONCEPT: ${concept.headline}
 ${concept.visualDirection}
 
-DESIGN SYSTEM:
-- Colors: Primary ${design.colors.primary}, Secondary ${design.colors.secondary}, Accent ${design.colors.accent}
-- Background: ${design.colors.background}
-- Visual Style: ${design.visualStyle}
-- Mood: ${design.mood}
-- Composition: ${design.layout.composition}
+DESIGN PALETTE:
+${design.colors.primary} • ${design.colors.secondary} • ${design.colors.accent}
+Style: ${design.visualStyle} | Mood: ${design.mood}
+Composition: ${design.layout.composition}
 
-TEXT OVERLAYS:
-${design.textOverlays.map((t: any) => `- "${t.text}" (${t.position}, ${t.style})`).join('\n')}
+TEXT & OVERLAYS TO INCLUDE:
+${design.textOverlays.map((t: any, i: number) => `${i + 1}. "${t.text}" — ${t.position}, ${t.style}`).join('\n')}
 
-REQUIREMENTS:
-- Aspect ratio: ${aspectRatio}
-- High quality, professional ad creative
-- Include all text overlays as specified
-- Match the color palette exactly
-- ${design.layout.elements.join(', ')}
+KEY ELEMENTS: ${design.layout.elements.join(', ')}
 
-Style: Photorealistic, premium advertising photography
+━━━ MAKE IT STAND OUT ━━━
+
+Think premium Meta ads you'd stop scrolling for:
+• CTAs as pill buttons with depth (shadows, gradients, icons/arrows)
+• Overlays & borders that match the theme and create visual interest
+• Text with professional styling (bold fonts, glows, shadows for readability)
+• Layers and depth (gradients, vignettes, color washes)
+• Modern, polished details that feel intentional
+
+Render everything as one cohesive, ready-to-publish creative. Be creative with how you apply the design system - surprise me with professional polish.
         `.trim();
 
         // 3. Generate image with Gemini
@@ -619,29 +637,31 @@ server.tool(
         const concept = image.adConcept;
 
         const enhancedPrompt = `
-Create a 9:16 Meta ad creative with the following specifications:
+Create a scroll-stopping 9:16 Meta/Instagram ad creative.
 
 CONCEPT: ${concept.headline}
 ${concept.visualDirection}
 
-DESIGN SYSTEM:
-- Colors: Primary ${design.colors.primary}, Secondary ${design.colors.secondary}, Accent ${design.colors.accent}
-- Background: ${design.colors.background}
-- Visual Style: ${design.visualStyle}
-- Mood: ${design.mood}
-- Composition: ${design.layout.composition}
+DESIGN PALETTE:
+${design.colors.primary} • ${design.colors.secondary} • ${design.colors.accent}
+Style: ${design.visualStyle} | Mood: ${design.mood}
+Composition: ${design.layout.composition}
 
-TEXT OVERLAYS:
-${design.textOverlays.map((t: any) => `- "${t.text}" (${t.position}, ${t.style})`).join('\n')}
+TEXT & OVERLAYS TO INCLUDE:
+${design.textOverlays.map((t: any, i: number) => `${i + 1}. "${t.text}" — ${t.position}, ${t.style}`).join('\n')}
 
-REQUIREMENTS:
-- Aspect ratio: 9:16
-- High quality, professional ad creative
-- Include all text overlays as specified
-- Match the color palette exactly
-- ${design.layout.elements.join(', ')}
+KEY ELEMENTS: ${design.layout.elements.join(', ')}
 
-Style: Photorealistic, premium advertising photography
+━━━ MAKE IT STAND OUT ━━━
+
+Think premium Meta ads you'd stop scrolling for:
+• CTAs as pill buttons with depth (shadows, gradients, icons/arrows)
+• Overlays & borders that match the theme and create visual interest  
+• Text with professional styling (bold fonts, glows, shadows for readability)
+• Layers and depth (gradients, vignettes, color washes)
+• Modern, polished details that feel intentional
+
+Render everything as one cohesive, ready-to-publish creative. Be creative with how you apply the design system - surprise me with professional polish.
         `.trim();
 
         const response = await ai.models.generateContent({
