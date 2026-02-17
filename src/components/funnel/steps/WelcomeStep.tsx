@@ -175,6 +175,17 @@ export function WelcomeStepComponent({ step }: Props) {
           {step.buttonText || 'Get Started'}
         </motion.button>
       )}
+
+      {/* Medical disclaimer */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 0.4 }}
+        className="text-xs italic mt-8 max-w-md"
+        style={{ color: 'var(--funnel-text-secondary)', opacity: 0.7 }}
+      >
+        Aurora is not a medical device and does not diagnose, treat, or prevent any condition
+      </motion.p>
     </div>
   );
 }
