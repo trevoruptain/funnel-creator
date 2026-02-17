@@ -14,12 +14,47 @@ export function CheckboxesStepComponent({ step }: Props) {
   const [selected, setSelected] = useState<string[]>(
     (getResponse(step.id) as string[]) || []
   );
+  const [otherText, setOtherText] = useState<string>('');
+  const [showOtherInput, setShowOtherInput] = useState(false);
+
+  // Check if step config has allowOther flag
+  const allowOther = (step as any).allowOther;
+  const otherPlaceholder = (step as any).otherPlaceholder || 'Please specify...';
 
   const toggleOption = (optionId: string) => {
     const newSelected = selected.includes(optionId)
       ? selected.filter((id) => id !== optionId)
       : [...selected, optionId];
     setSelected(newSelected);
+    setResponse(step.id, newSelected);
+    // If an option is selected, hide the "Other" input
+    if (showOtherInput && optionId !== 'other') {
+      setShowOtherInput(false);
+    }
+  };
+
+  const toggleOther = () => {
+    if (!showOtherInput) {
+      setShowOtherInput(true);
+      // Add 'other' to selection
+      const newSelected = [...selected.filter(id => id !== 'other'), 'other'];
+      setSelected(newSelected);
+    } else {
+      setShowOtherInput(false);
+      // Remove 'other' from selection
+      const newSelected = selected.filter(id => id !== 'other');
+      setSelected(newSelected);
+      setOtherText('');
+    }
+  };
+
+  const handleOtherTextChange = (text: string) => {
+    setOtherText(text);
+    // Update the response with the other text
+    const newSelected = selected.filter(id => id !== 'other');
+    if (text.trim()) {
+      newSelected.push(`Other: ${text}`);
+    }
     setResponse(step.id, newSelected);
   };
 
@@ -132,6 +167,67 @@ export function CheckboxesStepComponent({ step }: Props) {
             </motion.button>
           );
         })}
+
+        {/* Other option */}
+        {allowOther && (
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 + step.options.length * 0.05 }}
+          >
+            {!showOtherInput ? (
+              <button
+                onClick={toggleOther}
+                className="w-full p-4 rounded-2xl text-left transition-all flex items-center gap-4 hover:bg-opacity-80"
+                style={{
+                  backgroundColor: 'var(--funnel-surface)',
+                  color: 'var(--funnel-text-primary)',
+                  boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.05)',
+                }}
+              >
+                <div className="flex-1 font-medium">Other</div>
+                <div
+                  className="w-6 h-6 rounded-md border-2 flex-shrink-0 flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--funnel-text-secondary)',
+                  }}
+                >
+                </div>
+              </button>
+            ) : (
+              <div className="space-y-3 p-4 rounded-2xl" style={{
+                backgroundColor: 'var(--funnel-surface)',
+                boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.05)',
+              }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-medium" style={{ color: 'var(--funnel-text-primary)' }}>
+                    Other
+                  </div>
+                  <button
+                    onClick={toggleOther}
+                    className="text-sm"
+                    style={{ color: 'var(--funnel-text-secondary)' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => handleOtherTextChange(e.target.value)}
+                  placeholder={otherPlaceholder}
+                  className="w-full p-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: 'var(--funnel-text-secondary)',
+                    color: 'var(--funnel-text-primary)',
+                    backgroundColor: 'white',
+                  }}
+                  autoFocus
+                />
+              </div>
+            )}
+          </motion.div>
+        )}
       </div>
 
       <motion.button

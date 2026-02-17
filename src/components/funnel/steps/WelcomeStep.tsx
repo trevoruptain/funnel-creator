@@ -116,35 +116,45 @@ export function WelcomeStepComponent({ step }: Props) {
             transition={{ delay: 0.5, duration: 0.4 }}
             className="space-y-3"
           >
-            {options.map((option: string, index: number) => (
-              <motion.button
-                key={option}
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.5 + index * 0.05 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleOptionClick(option)}
-                className={`w-full py-4 px-6 rounded-2xl font-medium text-left transition-all ${
-                  selectedOption === option
-                    ? 'ring-2 ring-offset-2'
-                    : 'hover:shadow-md border'
-                }`}
-                style={{
-                  backgroundColor: selectedOption === option
-                    ? 'var(--funnel-primary)'
-                    : 'var(--funnel-surface)',
-                  color: selectedOption === option
-                    ? 'var(--funnel-text-on-primary)'
-                    : 'var(--funnel-text-primary)',
-                  borderColor: selectedOption === option
-                    ? 'transparent'
-                    : 'var(--funnel-text-secondary)',
-                }}
-              >
-                {option}
-              </motion.button>
-            ))}
+            {options.map((option: any, index: number) => {
+              // Handle both string options and object options {id, label, icon}
+              const optionId = typeof option === 'string' ? option : option.id;
+              const optionLabel = typeof option === 'string' ? option : option.label;
+              const optionIcon = typeof option === 'object' ? option.icon : null;
+              
+              return (
+                <motion.button
+                  key={optionId}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 + index * 0.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleOptionClick(optionId)}
+                  className={`w-full py-4 px-6 rounded-2xl font-medium text-left transition-all flex items-center gap-3 ${
+                    selectedOption === optionId
+                      ? 'ring-2 ring-offset-2'
+                      : 'hover:shadow-md border'
+                  }`}
+                  style={{
+                    backgroundColor: selectedOption === optionId
+                      ? 'var(--funnel-primary)'
+                      : 'var(--funnel-surface)',
+                    color: selectedOption === optionId
+                      ? 'var(--funnel-text-on-primary)'
+                      : 'var(--funnel-text-primary)',
+                    borderColor: selectedOption === optionId
+                      ? 'transparent'
+                      : 'var(--funnel-text-secondary)',
+                  }}
+                >
+                  {optionIcon && (
+                    <span className="text-2xl flex-shrink-0">{optionIcon}</span>
+                  )}
+                  <span className="flex-1">{optionLabel}</span>
+                </motion.button>
+              );
+            })}
           </motion.div>
         </div>
       ) : (
