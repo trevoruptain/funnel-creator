@@ -1,9 +1,9 @@
 'use client';
 
+import type { CheckoutStep } from '@/types/funnel';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useFunnel } from '../FunnelContext';
-import type { CheckoutStep } from '@/types/funnel';
 
 interface Props {
   step: CheckoutStep;
@@ -79,37 +79,51 @@ export function CheckoutStepComponent({ step }: Props) {
         </motion.p>
       )}
 
-      {/* Price display */}
+      {/* Price or Badge display */}
       <motion.div
         initial={{ y: 10, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
         className="text-center mb-6"
       >
-        {step.originalPrice && (
+        {(step as any).badge ? (
           <span
-            className="text-lg line-through mr-2"
-            style={{ color: 'var(--funnel-text-secondary)' }}
-          >
-            {formatPrice(step.originalPrice, step.currency)}
-          </span>
-        )}
-        <span
-          className="text-4xl font-bold"
-          style={{ color: 'var(--funnel-primary)' }}
-        >
-          {formatPrice(step.price, step.currency)}
-        </span>
-        {step.originalPrice && (
-          <span
-            className="ml-2 text-sm px-2 py-1 rounded-full"
+            className="inline-block text-lg font-semibold px-6 py-2 rounded-full"
             style={{
               backgroundColor: 'var(--funnel-primary)',
               color: '#fff',
             }}
           >
-            Save {Math.round(((step.originalPrice - step.price) / step.originalPrice) * 100)}%
+            {(step as any).badge}
           </span>
+        ) : (
+          <>
+            {step.originalPrice && (
+              <span
+                className="text-lg line-through mr-2"
+                style={{ color: 'var(--funnel-text-secondary)' }}
+              >
+                {formatPrice(step.originalPrice, step.currency)}
+              </span>
+            )}
+            <span
+              className="text-4xl font-bold"
+              style={{ color: 'var(--funnel-primary)' }}
+            >
+              {formatPrice(step.price, step.currency)}
+            </span>
+            {step.originalPrice && (
+              <span
+                className="ml-2 text-sm px-2 py-1 rounded-full"
+                style={{
+                  backgroundColor: 'var(--funnel-primary)',
+                  color: '#fff',
+                }}
+              >
+                Save {Math.round(((step.originalPrice - step.price) / step.originalPrice) * 100)}%
+              </span>
+            )}
+          </>
         )}
       </motion.div>
 
