@@ -79,53 +79,41 @@ export function CheckoutStepComponent({ step }: Props) {
         </motion.p>
       )}
 
-      {/* Price or Badge display */}
-      <motion.div
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-center mb-6"
-      >
-        {(step as any).badge ? (
-          <span
-            className="inline-block text-lg font-semibold px-6 py-2 rounded-full"
-            style={{
-              backgroundColor: 'var(--funnel-primary)',
-              color: '#fff',
-            }}
-          >
-            {(step as any).badge}
-          </span>
-        ) : (
-          <>
-            {step.originalPrice && (
-              <span
-                className="text-lg line-through mr-2"
-                style={{ color: 'var(--funnel-text-secondary)' }}
-              >
-                {formatPrice(step.originalPrice, step.currency)}
-              </span>
-            )}
+      {/* Price display (hide if badge is present) */}
+      {!(step as any).badge && (
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-center mb-6"
+        >
+          {step.originalPrice && (
             <span
-              className="text-4xl font-bold"
-              style={{ color: 'var(--funnel-primary)' }}
+              className="text-lg line-through mr-2"
+              style={{ color: 'var(--funnel-text-secondary)' }}
             >
-              {formatPrice(step.price, step.currency)}
+              {formatPrice(step.originalPrice, step.currency)}
             </span>
-            {step.originalPrice && (
-              <span
-                className="ml-2 text-sm px-2 py-1 rounded-full"
-                style={{
-                  backgroundColor: 'var(--funnel-primary)',
-                  color: '#fff',
-                }}
-              >
-                Save {Math.round(((step.originalPrice - step.price) / step.originalPrice) * 100)}%
-              </span>
-            )}
-          </>
-        )}
-      </motion.div>
+          )}
+          <span
+            className="text-4xl font-bold"
+            style={{ color: 'var(--funnel-primary)' }}
+          >
+            {formatPrice(step.price, step.currency)}
+          </span>
+          {step.originalPrice && (
+            <span
+              className="ml-2 text-sm px-2 py-1 rounded-full"
+              style={{
+                backgroundColor: 'var(--funnel-primary)',
+                color: '#fff',
+              }}
+            >
+              Save {Math.round(((step.originalPrice - step.price) / step.originalPrice) * 100)}%
+            </span>
+          )}
+        </motion.div>
+      )}
 
       {/* Features list */}
       {step.features && step.features.length > 0 && (
@@ -164,6 +152,19 @@ export function CheckoutStepComponent({ step }: Props) {
       >
         {step.buttonText || 'Reserve Your Aurora'}
       </motion.button>
+
+      {/* Limited Time Offer subtext */}
+      {(step as any).badge && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="text-center text-sm mt-3"
+          style={{ color: 'var(--funnel-text-secondary)' }}
+        >
+          {(step as any).badge}
+        </motion.p>
+      )}
 
       {/* Guarantee text */}
       {step.guarantee && (
