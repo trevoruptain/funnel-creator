@@ -119,6 +119,7 @@ export interface InfoCardStep extends BaseStep {
   title: string;
   description: string;
   image?: string; // Illustration placeholder
+  bullets?: string[]; // Optional bullet points
   buttonText?: string; // Default: "Continue"
 }
 

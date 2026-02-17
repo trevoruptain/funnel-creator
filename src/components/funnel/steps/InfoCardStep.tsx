@@ -1,9 +1,9 @@
 'use client';
 
+import type { InfoCardStep } from '@/types/funnel';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useFunnel } from '../FunnelContext';
-import type { InfoCardStep } from '@/types/funnel';
 
 interface Props {
   step: InfoCardStep;
@@ -61,8 +61,8 @@ export function InfoCardStepComponent({ step }: Props) {
           <Image
             src={step.image}
             alt=""
-            width={200}
-            height={200}
+            width={300}
+            height={300}
             className="rounded-2xl relative z-10"
           />
         </motion.div>
@@ -115,6 +115,32 @@ export function InfoCardStepComponent({ step }: Props) {
       >
         {step.description}
       </motion.p>
+
+      {/* Bullet points (if present) */}
+      {step.bullets && step.bullets.length > 0 && (
+        <motion.ul
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="text-left mb-8 max-w-sm space-y-3"
+        >
+          {step.bullets.map((bullet, index) => (
+            <motion.li
+              key={index}
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.4 + index * 0.05 }}
+              className="flex items-start gap-3"
+              style={{ color: textColor }}
+            >
+              <span className="text-lg mt-0.5" style={{ color: hasDarkBackground ? '#ffffff' : 'var(--funnel-primary)' }}>
+                ✓
+              </span>
+              <span className="flex-1">{bullet}</span>
+            </motion.li>
+          ))}
+        </motion.ul>
+      )}
 
       <motion.button
         initial={{ y: 20, opacity: 0 }}
