@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useFunnel } from '../FunnelContext';
 import type { MultipleChoiceStep } from '@/types/funnel';
+import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { useFunnel } from '../FunnelContext';
 
 interface Props {
   step: MultipleChoiceStep;
@@ -14,12 +14,31 @@ export function MultipleChoiceStepComponent({ step }: Props) {
   const [selected, setSelected] = useState<string | null>(
     (getResponse(step.id) as string) || null
   );
+  const [otherText, setOtherText] = useState<string>('');
+  const [showOtherInput, setShowOtherInput] = useState(false);
+
+  // Check if step config has allowOther flag
+  const allowOther = (step as any).allowOther;
+  const otherPlaceholder = (step as any).otherPlaceholder || 'Please specify...';
 
   const handleSelect = (optionId: string) => {
     setSelected(optionId);
     setResponse(step.id, optionId);
+    setShowOtherInput(false);
     // Auto-advance after selection with slight delay for visual feedback
     setTimeout(() => goNext(), 300);
+  };
+
+  const handleOtherClick = () => {
+    setShowOtherInput(true);
+    setSelected('other');
+  };
+
+  const handleOtherContinue = () => {
+    if (otherText.trim()) {
+      setResponse(step.id, `Other: ${otherText}`);
+      goNext();
+    }
   };
 
   return (
@@ -116,6 +135,89 @@ export function MultipleChoiceStepComponent({ step }: Props) {
             </div>
           </motion.button>
         ))}
+
+        {/* Other option */}
+        {allowOther && (
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 + step.options.length * 0.05 }}
+          >
+            {!showOtherInput ? (
+              <button
+                onClick={handleOtherClick}
+                className={`w-full p-4 rounded-2xl text-left transition-all flex items-center gap-4 ${
+                  selected === 'other'
+                    ? 'ring-2'
+                    : 'hover:bg-opacity-80'
+                }`}
+                style={{
+                  backgroundColor:
+                    selected === 'other'
+                      ? 'var(--funnel-primary)'
+                      : 'var(--funnel-surface)',
+                  color:
+                    selected === 'other'
+                      ? '#ffffff'
+                      : 'var(--funnel-text-primary)',
+                  boxShadow:
+                    selected === 'other'
+                      ? '0 4px 14px 0 rgba(0, 0, 0, 0.15)'
+                      : '0 2px 8px 0 rgba(0, 0, 0, 0.05)',
+                }}
+              >
+                <div className="flex-1 font-medium">Other</div>
+                <div
+                  className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                    selected === 'other' ? 'border-white bg-white' : ''
+                  }`}
+                  style={{
+                    borderColor:
+                      selected === 'other'
+                        ? '#ffffff'
+                        : 'var(--funnel-text-secondary)',
+                  }}
+                >
+                  {selected === 'other' && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: 'var(--funnel-primary)' }}
+                    />
+                  )}
+                </div>
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => setOtherText(e.target.value)}
+                  placeholder={otherPlaceholder}
+                  className="w-full p-4 rounded-2xl border-2 focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: 'var(--funnel-text-secondary)',
+                    color: 'var(--funnel-text-primary)',
+                    backgroundColor: 'var(--funnel-surface)',
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleOtherContinue}
+                  disabled={!otherText.trim()}
+                  className="w-full py-4 px-8 rounded-full text-white font-semibold text-lg shadow-lg disabled:opacity-50"
+                  style={{
+                    backgroundColor: 'var(--funnel-primary)',
+                    boxShadow: '0 4px 14px 0 rgba(0, 0, 0, 0.2)',
+                  }}
+                >
+                  Continue
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
       </div>
     </div>
   );
