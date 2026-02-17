@@ -209,7 +209,206 @@ If the Originator wants to refine a creative:
 
 **6d.** Repeat refinement cycle as needed until approved
 
-### Step 6: Next Steps
+### Step 7: Meta Campaign Launch Guidance
+
+Once all creatives are approved, provide the Originator with a comprehensive guide for launching their Meta ad campaign. Present this as a structured checklist covering ALL required fields:
+
+**📋 Meta Ads Manager Setup Checklist**
+
+---
+
+#### **CAMPAIGN LEVEL**
+
+**1. Campaign Objective** *(Choose one based on their goal from Q3)*
+- ☐ **Awareness** — Maximize reach and brand recognition (for new product launches)
+- ☐ **Traffic** — Drive clicks to website, landing page, app, or Messenger
+- ☐ **Engagement** — Encourage likes, comments, shares, or video views
+- ☐ **Leads** — Collect customer info via forms, Messenger, WhatsApp, or calls
+- ☐ **App Promotion** — Get app installs and in-app activity
+- ☐ **Sales** — Drive purchases, add-to-cart, or donations (requires Meta Pixel)
+
+**2. Campaign Name**
+- ☐ Use descriptive format: `[Product]_[Objective]_[Date]` (e.g., `Aurora_Leads_Feb2026`)
+
+**3. Buying Type**
+- ☐ Select **Auction** (recommended for flexibility and cost-efficiency)
+
+**4. Special Ad Categories**
+- ☐ Declare if applicable: Credit, Employment, Housing, Social Issues/Elections/Politics
+- ☐ If none apply, select "None"
+
+---
+
+#### **AD SET LEVEL**
+
+**5. Ad Set Name**
+- ☐ Use descriptive format: `[Audience]_[Placement]` (e.g., `PregnantWomen_25-35_Feed`)
+
+**6. Budget & Schedule**
+- ☐ **Budget Type:** Daily budget OR Lifetime budget
+- ☐ **Amount:** Based on Q8 answer (start with 20-30% of monthly budget for testing)
+- ☐ **Schedule:** Set start date and end date (or run continuously)
+- ☐ **Bid Strategy:** Leave as "Lowest cost" for beginners
+
+**7. Audience Targeting** *(Use your inferred targeting from Step 2)*
+- ☐ **Location:** US only (Q10) or expand to English-speaking countries
+- ☐ **Age:** Based on audience analysis (e.g., 25-40 for maternal health)
+- ☐ **Gender:** Based on product (e.g., All, Women, Men)
+- ☐ **Language:** English (or specify)
+- ☐ **Detailed Targeting:**
+  - Interest categories: *(List the specific Meta interests from your analysis)*
+  - Behaviors: *(E.g., "Expecting parents", "Engaged shoppers")*
+  - Demographics: *(E.g., "Parents (all)", "New parents")*
+- ☐ **Custom Audiences:** If available (website visitors, email list, app users)
+- ☐ **Lookalike Audiences:** If you have 100+ conversions, create 1% lookalike
+
+**8. Placements** *(Based on Q9 answer)*
+- ☐ **Advantage+ Placements (RECOMMENDED):** Let Meta auto-optimize across all placements
+- ☐ **Manual Placements:** Select specific placements:
+  - **Facebook:** Feed, Stories, Reels, In-stream videos, Search results, In-article
+  - **Instagram:** Feed, Stories, Reels, Profile feed, Explore
+  - **Messenger:** Inbox, Stories
+  - **Audience Network:** Native, banner, interstitial (external apps/websites)
+
+**9. Performance Goal** *(Depends on objective)*
+- ☐ For **Traffic:** Maximize clicks OR Landing page views
+- ☐ For **Leads:** Maximize leads OR Lead form opens
+- ☐ For **Sales:** Maximize purchases OR Add to cart
+- ☐ For **Engagement:** Post engagement OR Video views
+
+**10. Conversion Tracking** *(Critical for Sales/Leads objectives)*
+- ☐ Install Meta Pixel on your website (if not already done)
+- ☐ Select conversion event: Page View, Lead, Purchase, Add to Cart, etc.
+- ☐ Verify pixel is firing correctly before launching
+
+---
+
+#### **AD LEVEL** *(Create one ad per approved concept)*
+
+**For each concept (repeat for Concept 1, Concept 2, etc.):**
+
+**11. Ad Name**
+- ☐ Use concept name: `[Concept Name]_[Format]` (e.g., `PeaceOfMind_SingleImage`)
+
+**12. Identity**
+- ☐ Facebook Page: Your business page
+- ☐ Instagram Account: Connect if running on Instagram (based on Q9)
+
+**13. Ad Format** *(Choose based on creative type)*
+- ☐ **Single Image** — Most common, use your 9:16 generated image
+- ☐ **Single Video** — If you create video from image
+- ☐ **Carousel** — 2-10 swipeable images/videos (good for showing features)
+- ☐ **Collection** — Full-screen mobile storefront experience
+- ☐ **Instant Experience** — Full-screen interactive landing page within app
+
+**14. Creative Assets**
+- ☐ **Primary Image/Video:** Upload your approved creative from Step 6
+  - Recommended: 1080x1920 (9:16 ratio for Stories/Reels) or 1080x1080 (1:1 for Feed)
+  - File size: Under 30MB for images, under 4GB for video
+- ☐ **Primary Text:** Copy your **Body Copy** from the concept (125 chars max for mobile)
+- ☐ **Headline:** Copy your **Headline** from the concept (40 chars max)
+- ☐ **Description:** Optional supporting copy (30 chars)
+
+**15. Call-to-Action Button** *(Choose based on Q3 and objective)*
+
+**For Awareness/Traffic:**
+- ☐ Learn More *(most versatile, works for most campaigns)*
+- ☐ Watch More
+- ☐ See Menu
+
+**For Leads:**
+- ☐ Sign Up
+- ☐ Subscribe
+- ☐ Apply Now
+- ☐ Get Quote
+- ☐ Download
+- ☐ Message Us (opens Messenger)
+- ☐ Call Now (mobile only, requires phone number)
+- ☐ Contact Us
+
+**For Sales:**
+- ☐ Shop Now
+- ☐ Buy Now
+- ☐ Order Now
+- ☐ Book Now
+- ☐ Donate Now
+
+**For App Promotion:**
+- ☐ Install Now
+- ☐ Use App
+- ☐ Play Game
+
+**16. Destination**
+- ☐ **Website URL:** Paste URL from Q4
+- ☐ Add UTM parameters for tracking: `?utm_source=facebook&utm_medium=cpc&utm_campaign=[campaign_name]&utm_content=[concept_name]`
+- ☐ **OR** Instant Experience / Lead Form (if using that format)
+
+**17. Display Link** *(Optional but recommended)*
+- ☐ Show cleaner URL: your domain name only (e.g., `aurora.com`)
+
+---
+
+#### **BEFORE LAUNCH - FINAL CHECKS**
+
+**18. Preview Your Ads**
+- ☐ Use Ads Manager preview to see how ads look on:
+  - Mobile Feed, Desktop Feed
+  - Instagram Feed, Instagram Stories
+  - Facebook Stories, Facebook Reels
+- ☐ Verify all text is readable, image is clear, CTA makes sense
+
+**19. Audience Size Check**
+- ☐ Ensure audience size shows "Specific" (green, 100K-500K people ideal)
+- ☐ Too broad (millions)? Add more detailed targeting
+- ☐ Too narrow (<10K)? Expand age range or interests
+
+**20. Compliance Review**
+- ☐ Review Meta Advertising Policies (no misleading claims, must follow disclosure rules for health products)
+- ☐ For health/wellness: Include disclaimers if making health claims
+- ☐ No "before/after" images that imply unrealistic results
+
+---
+
+#### **POST-LAUNCH**
+
+**21. Monitor Performance (First 48 Hours)**
+- ☐ Check Ads Manager daily for:
+  - CTR (Click-Through Rate): Aim for 1%+ for cold traffic
+  - CPC (Cost Per Click): Should align with industry benchmarks ($0.50-$3.00 avg)
+  - Relevance Score: 6+ is good, below 6 needs creative refresh
+- ☐ If spending with no results after $50-100, pause and adjust targeting or creative
+
+**22. Testing Plan** *(After initial results)*
+- ☐ A/B test concepts against each other (run simultaneously, compare after 3-7 days)
+- ☐ Test different audiences with same creative
+- ☐ Test different placements (Stories vs Feed)
+- ☐ Scale winning combos by increasing budget 20% every 3 days
+
+---
+
+**📌 RECOMMENDED LAUNCH STRATEGY**
+
+Based on your budget (Q8: **[insert their answer]**) and objective (Q3: **[insert their answer]**):
+
+1. **Week 1:** Run all concepts simultaneously with $10-20/day each
+2. **Week 2:** Double down on top 2 performers, pause underperformers
+3. **Week 3:** Scale winners by 20-50%, test new audiences
+4. **Ongoing:** Refresh creatives every 2-3 weeks to avoid ad fatigue
+
+---
+
+**🎯 YOUR SPECIFIC SETUP** *(Pre-filled based on intake)*
+
+- **Objective:** [Auto-fill based on Q3]
+- **Placement:** [Auto-fill based on Q9]
+- **Location:** [Auto-fill based on Q10]
+- **Destination URL:** [Auto-fill from Q4]
+- **Recommended CTA:** [Auto-suggest based on objective]
+- **Targeting Interests:** [List from Step 2 analysis]
+
+**Would you like me to create a tracking spreadsheet to monitor performance across all concepts?**
+
+### Step 8: Next Steps
 
 Inform the Originator:
 - Their project has been saved to the database
