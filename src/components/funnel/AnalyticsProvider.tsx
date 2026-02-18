@@ -27,13 +27,15 @@ export function AnalyticsProvider({
 }: AnalyticsProviderProps) {
   useEffect(() => {
     // Initialize analytics on mount
+    const firstStep = config.steps?.[0];
     funnelAnalytics.init(
       {
         metaPixelId: trackingConfig?.metaPixelId || config.tracking?.pixelId,
         googleAdsId: trackingConfig?.googleAdsId || config.tracking?.gtmId,
         apiEndpoint: trackingConfig?.apiEndpoint,
       },
-      config.id
+      config.id,
+      firstStep ? { id: firstStep.id, type: firstStep.type } : undefined
     );
   }, [config, trackingConfig]);
 

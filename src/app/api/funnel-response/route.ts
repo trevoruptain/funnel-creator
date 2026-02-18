@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: `Funnel not found: ${data.funnel_id}` }, { status: 404 });
         }
 
-        await db
+        const [insertedSession] = await db
           .insert(sessions)
           .values({
             funnelId: funnel.id,
@@ -35,7 +35,18 @@ export async function POST(request: NextRequest) {
             userAgent,
             utmParams: data.utm && Object.keys(data.utm).length > 0 ? data.utm : null,
           })
-          .onConflictDoNothing({ target: sessions.sessionToken });
+          .onConflictDoNothing({ target: sessions.sessionToken })
+          .returning({ id: sessions.id });
+
+        // Atomic first step_view: avoids race where step_view arrives before session exists
+        if (insertedSession && data.step_view) {
+          await db.insert(stepViews).values({
+            sessionId: insertedSession.id,
+            stepId: data.step_view.step_id,
+            stepIndex: data.step_view.step_index ?? 0,
+            stepType: data.step_view.step_type,
+          });
+        }
 
         console.log(`[Funnel Start] ${data.funnel_id} session=${data.session_id}`);
         break;
@@ -189,6 +200,7 @@ export async function GET(request: NextRequest) {
       limit,
       with: {
         responses: true,
+        stepViews: true,
       },
     });
 

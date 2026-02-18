@@ -12,7 +12,8 @@
     "db:seed": "npx tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "install-skill": "mkdir -p ~/.claude/skills && cp -r skills/ad-pipeline ~/.claude/skills/",
-    "test:ad-gen": "npx tsx mcp-server/test-ad-generation.ts"
+    "test:ad-gen": "npx tsx mcp-server/test-ad-generation.ts",
+    "verify-tracking": "npx tsx scripts/verify-tracking.ts"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",

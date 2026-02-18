@@ -82,19 +82,13 @@ export function FunnelProvider({ config, children, onComplete }: FunnelProviderP
   const currentStepIndex = currentVisibleIndex; // For compatibility
   const progress = ((currentVisibleIndex + 1) / totalSteps) * 100;
 
-  // Track step views when step changes
+  // Track step views when step changes (first step is sent atomically in funnel_start)
   useEffect(() => {
     if (currentStepIndex !== prevStepIndex.current) {
       analytics.trackStepView(currentStep.id, currentStepIndex, currentStep.type);
       prevStepIndex.current = currentStepIndex;
     }
   }, [currentStepIndex, currentStep, analytics]);
-
-  // Track initial step view
-  useEffect(() => {
-    analytics.trackStepView(currentStep.id, 0, currentStep.type);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const setResponse = useCallback((stepId: string, value: unknown, opts?: { skipTracking?: boolean }) => {
     setResponses((prev) => ({ ...prev, [stepId]: value }));

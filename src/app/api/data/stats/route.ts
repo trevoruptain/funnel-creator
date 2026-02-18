@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { funnels, responses, sessions, stepViews } from '@/db/schema';
+import { funnelSteps, funnels, responses, sessions, stepViews } from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
 import { and, eq, gte, lte, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
@@ -94,8 +94,8 @@ export async function GET(request: NextRequest) {
 
         // Get step ordering from funnel_steps
         const funnelStepsList = await db.query.funnelSteps.findMany({
-            where: eq(sessions.funnelId, funnel.id),
-            orderBy: (funnelSteps, { asc }) => [asc(funnelSteps.sortOrder)],
+            where: eq(funnelSteps.funnelId, funnel.id),
+            orderBy: (fs, { asc }) => [asc(fs.sortOrder)],
             columns: { stepId: true, type: true, sortOrder: true },
         });
 

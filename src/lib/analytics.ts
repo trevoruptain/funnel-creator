@@ -161,7 +161,11 @@ class FunnelAnalytics {
   private funnelId: string = '';
   private sessionId: string = '';
 
-  init(config: FunnelTrackingConfig, funnelId: string) {
+  init(
+    config: FunnelTrackingConfig,
+    funnelId: string,
+    firstStep?: { id: string; type: string }
+  ) {
     this.config = config;
     this.funnelId = funnelId;
     this.sessionId = this.generateSessionId();
@@ -174,10 +178,17 @@ class FunnelAnalytics {
     // Capture UTM params on init (before any events)
     captureUTMParams();
 
-    // Track funnel start — include utm for session attribution
+    // Track funnel start — include utm and first step_view atomically (avoids race)
     this.trackEvent('funnel_start', {
       funnel_id: funnelId,
       utm: getStoredUTMParams(),
+      ...(firstStep && {
+        step_view: {
+          step_id: firstStep.id,
+          step_index: 0,
+          step_type: firstStep.type,
+        },
+      }),
     });
   }
 
