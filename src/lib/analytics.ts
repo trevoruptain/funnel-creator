@@ -171,11 +171,14 @@ class FunnelAnalytics {
       initGoogleTag(config.googleAdsId || config.googleAnalyticsId || '');
     }
 
-    // Capture UTM params on init
+    // Capture UTM params on init (before any events)
     captureUTMParams();
 
-    // Track funnel start
-    this.trackEvent('funnel_start', { funnel_id: funnelId });
+    // Track funnel start — include utm for session attribution
+    this.trackEvent('funnel_start', {
+      funnel_id: funnelId,
+      utm: getStoredUTMParams(),
+    });
   }
 
   private generateSessionId(): string {
@@ -190,6 +193,7 @@ class FunnelAnalytics {
       step_index: stepIndex,
       step_type: stepType,
       session_id: this.sessionId,
+      utm: getStoredUTMParams(),
     };
 
     // Meta Pixel
@@ -209,6 +213,7 @@ class FunnelAnalytics {
       step_id: stepId,
       response: response,
       session_id: this.sessionId,
+      utm: getStoredUTMParams(),
     };
 
     // Meta Pixel

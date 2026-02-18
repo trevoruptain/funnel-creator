@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
             sessionToken: data.session_id,
             ip,
             userAgent,
-            utmParams: data.utm ?? null,
+            utmParams: data.utm && Object.keys(data.utm).length > 0 ? data.utm : null,
           })
-          .onConflictDoNothing(); // Idempotent — skip if session already exists
+          .onConflictDoNothing({ target: sessions.sessionToken });
 
         console.log(`[Funnel Start] ${data.funnel_id} session=${data.session_id}`);
         break;
@@ -43,12 +43,41 @@ export async function POST(request: NextRequest) {
 
       // ── Step View ──────────────────────────────────────────────
       case 'step_view': {
-        // Resolve session
-        const session = await db.query.sessions.findFirst({
+        let session = await db.query.sessions.findFirst({
           where: eq(sessions.sessionToken, data.session_id),
         });
 
+        // Race fix: if funnel_start hasn't created the session yet, create it now
+        if (!session && data.funnel_id) {
+          const funnel = await db.query.funnels.findFirst({
+            where: eq(funnels.slug, data.funnel_id),
+          });
+          if (funnel) {
+            await db
+              .insert(sessions)
+              .values({
+                funnelId: funnel.id,
+                sessionToken: data.session_id,
+                ip,
+                userAgent,
+                utmParams: data.utm && Object.keys(data.utm).length > 0 ? data.utm : null,
+              })
+              .onConflictDoNothing({ target: sessions.sessionToken });
+            session = await db.query.sessions.findFirst({
+              where: eq(sessions.sessionToken, data.session_id),
+            });
+          }
+        }
+
         if (session) {
+          // Backfill utm_params if session has none (e.g. funnel_start raced)
+          if (!session.utmParams && data.utm && Object.keys(data.utm).length > 0) {
+            await db
+              .update(sessions)
+              .set({ utmParams: data.utm })
+              .where(eq(sessions.id, session.id));
+          }
+
           await db.insert(stepViews).values({
             sessionId: session.id,
             stepId: data.step_id,
@@ -66,6 +95,14 @@ export async function POST(request: NextRequest) {
         });
 
         if (session) {
+          // Backfill utm_params if missing (handles any race)
+          if (!session.utmParams && data.utm && Object.keys(data.utm).length > 0) {
+            await db
+              .update(sessions)
+              .set({ utmParams: data.utm })
+              .where(eq(sessions.id, session.id));
+          }
+
           // Resolve the actual funnel step record (the UUID)
           const funnelStep = await db.query.funnelSteps.findFirst({
             where: and(
