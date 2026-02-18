@@ -19,7 +19,7 @@ interface FunnelContextValue {
   goToStep: (index: number) => void;
 
   // Response handling
-  setResponse: (stepId: string, value: unknown) => void;
+  setResponse: (stepId: string, value: unknown, opts?: { skipTracking?: boolean }) => void;
   getResponse: (stepId: string) => unknown;
 
   // Completion
@@ -96,10 +96,11 @@ export function FunnelProvider({ config, children, onComplete }: FunnelProviderP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setResponse = useCallback((stepId: string, value: unknown) => {
+  const setResponse = useCallback((stepId: string, value: unknown, opts?: { skipTracking?: boolean }) => {
     setResponses((prev) => ({ ...prev, [stepId]: value }));
-    // Track response
-    analytics.trackResponse(stepId, value);
+    if (!opts?.skipTracking) {
+      analytics.trackResponse(stepId, value);
+    }
   }, [analytics]);
 
   const getResponse = useCallback(
@@ -128,12 +129,6 @@ export function FunnelProvider({ config, children, onComplete }: FunnelProviderP
       };
       setCompleteData(data);
       setIsComplete(true);
-
-      // Track completion
-      analytics.trackCompletion(responses, email);
-      if (email) {
-        analytics.trackLead(email, { responses });
-      }
 
       onComplete?.(data);
     }

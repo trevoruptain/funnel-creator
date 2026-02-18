@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAnalytics } from '../AnalyticsProvider';
 import { useFunnel } from '../FunnelContext';
 import type { EmailStep } from '@/types/funnel';
 
@@ -10,7 +11,8 @@ interface Props {
 }
 
 export function EmailStepComponent({ step }: Props) {
-  const { goNext, setResponse, getResponse } = useFunnel();
+  const { goNext, setResponse, getResponse, responses } = useFunnel();
+  const analytics = useAnalytics();
   const [email, setEmail] = useState((getResponse(step.id) as string) || '');
   const [error, setError] = useState<string | null>(null);
 
@@ -27,8 +29,18 @@ export function EmailStepComponent({ step }: Props) {
       return;
     }
     setResponse(step.id, email);
-    // Also store as 'email' for easy access
-    setResponse('email', email);
+    if (step.id !== 'email') {
+      setResponse('email', email, { skipTracking: true });
+    }
+
+    // Fire conversion events at email capture (CompleteRegistration, Lead, funnel_complete).
+    // Must fire here because the last step (result) doesn't call goNext().
+    const mergedResponses = { ...responses, [step.id]: email, email };
+    analytics.trackCompletion(mergedResponses, email);
+    if (email) {
+      analytics.trackLead(email, { responses: mergedResponses });
+    }
+
     goNext();
   };
 
