@@ -2,6 +2,10 @@ import { GoogleGenAI } from '@google/genai';
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
+// Ensure Vertex AI only — never fall back to Gemini API key
+delete process.env.GOOGLE_API_KEY;
+delete process.env.GEMINI_API_KEY;
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { neon } from '@neondatabase/serverless';
@@ -15,7 +19,11 @@ import { GEMINI_MODELS } from './constants.js';
 // ── Setup ────────────────────────────────────────────────────────────
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql, { schema });
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+const ai = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GOOGLE_CLOUD_PROJECT ?? 'armen-pbu',
+    location: process.env.GOOGLE_CLOUD_LOCATION ?? 'global',
+});
 
 const server = new McpServer({
     name: 'funnel-creator',

@@ -8,6 +8,10 @@ import { GoogleGenAI } from '@google/genai';
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
+// Vertex AI only — never fall back to Gemini API key
+delete process.env.GOOGLE_API_KEY;
+delete process.env.GEMINI_API_KEY;
+
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 import { eq } from 'drizzle-orm';
@@ -18,7 +22,11 @@ import { GEMINI_MODELS } from './constants.js';
 // ── Setup ────────────────────────────────────────────────────────────
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql, { schema });
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+const ai = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GOOGLE_CLOUD_PROJECT ?? 'armen-pbu',
+    location: process.env.GOOGLE_CLOUD_LOCATION ?? 'global',
+});
 
 async function main() {
     console.log('🧪 Testing Ad Creative Generation\n');

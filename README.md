@@ -14,8 +14,16 @@ Create `.env.local`:
 DATABASE_URL=your-neon-connection-string
 DATA_API_KEY=your-secret-key
 BLOB_READ_WRITE_TOKEN=your-vercel-blob-token
-GOOGLE_API_KEY=your-gemini-api-key
+
+# Vertex AI (Gemini) - uses service account JSON, not API key
+GOOGLE_CLOUD_PROJECT=armen-pbu
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_APPLICATION_CREDENTIALS=./credentials/vertexai-credentials.json
 ```
+
+Create `credentials/` and place your GCP service account JSON there as `vertexai-credentials.json`. The service account needs the **Vertex AI User** role.
+
+`GOOGLE_API_KEY` / `GEMINI_API_KEY` are not used; remove them from `.env.local` if present.
 
 Push the schema:
 
