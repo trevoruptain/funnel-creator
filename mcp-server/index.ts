@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { config } from 'dotenv';
-config({ path: '.env.local' });
+config({ path: '.env.local', quiet: true });
 
 // Ensure Vertex AI only — never fall back to Gemini API key
 delete process.env.GOOGLE_API_KEY;

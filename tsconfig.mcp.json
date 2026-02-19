@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "mcp-server/dist",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": false
+  },
+  "include": ["mcp-server/**/*.ts", "src/db/schema.ts"],
+  "exclude": ["node_modules"]
+}

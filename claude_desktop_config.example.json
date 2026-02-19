@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "funnel-creator": {
+      "command": "/bin/bash",
+      "args": ["/path/to/funnel-creator/mcp-server/run-mcp.sh"],
+      "cwd": "/path/to/funnel-creator"
+    }
+  }
+}

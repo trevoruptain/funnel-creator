@@ -16,7 +16,7 @@ DATA_API_KEY=your-secret-key
 BLOB_READ_WRITE_TOKEN=your-vercel-blob-token
 
 # Vertex AI (Gemini) - uses service account JSON, not API key
-GOOGLE_CLOUD_PROJECT=armen-pbu
+GOOGLE_CLOUD_PROJECT=your-gcp-project
 GOOGLE_CLOUD_LOCATION=global
 GOOGLE_APPLICATION_CREDENTIALS=./credentials/vertexai-credentials.json
 ```
@@ -24,6 +24,8 @@ GOOGLE_APPLICATION_CREDENTIALS=./credentials/vertexai-credentials.json
 Create `credentials/` and place your GCP service account JSON there as `vertexai-credentials.json`. The service account needs the **Vertex AI User** role.
 
 `GOOGLE_API_KEY` / `GEMINI_API_KEY` are not used; remove them from `.env.local` if present.
+
+Optional (tracking): `NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GOOGLE_ADS_ID`
 
 Push the schema:
 
@@ -79,10 +81,10 @@ WHERE step_id = 'welcome' AND funnel_id = (
 ### Funnel Selection
 
 Load specific funnels via URL parameter:
-- `http://localhost:3000/?funnel=maternal-fetal-399`
+- `http://localhost:3000/?funnel=maternal-fetal-399-v1`
 - `http://localhost:3000/?funnel=another-funnel-slug`
 
-Default funnel (when no parameter): `maternal-fetal-399`
+Default funnel (when no parameter): `maternal-fetal-399-v1`
 
 ## MCP Server (Claude Code)
 
@@ -106,22 +108,39 @@ Env vars are loaded from `.env.local` automatically.
 
 Use the `/ad-pipeline` skill to run the full intake → concepts → image gen workflow.
 
+### Claude Desktop (standalone app)
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (merge into existing `mcpServers`). Claude Desktop will run the server automatically when you start a conversation — no manual step.
+
+```json
+"funnel-creator": {
+  "command": "/bin/bash",
+  "args": ["/absolute/path/to/funnel-creator/mcp-server/run-mcp.sh"],
+  "cwd": "/absolute/path/to/funnel-creator"
+}
+```
+
+See [claude_desktop_config.example.json](claude_desktop_config.example.json) for a full example. The wrapper script ensures Node 18+ is used (required by dependencies). Replace `/absolute/path/to/funnel-creator` with your actual project path.
+
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server |
 | `npm run build` | Production build |
+| `npm run start` | Run production server |
 | `npm run db:push` | Push schema to Neon |
 | `npm run db:studio` | Open Drizzle Studio |
 | `npm run db:generate` | Generate migrations |
+| `npm run test:ad-gen` | Run ad generation integration test |
+| `npm run verify-tracking` | Verify funnel tracking endpoints |
 
 ## Stack
 
 - **Next.js 16** — App Router, API routes
 - **Neon** — Serverless Postgres
 - **Drizzle ORM** — Type-safe schema & queries
-- **Gemini 3 Pro** — AI image generation
+- **Vertex AI** — Gemini 3 Pro Image (ad creative generation)
 - **Vercel Blob** — Image storage
 - **Framer Motion** — Step animations
 - **Tailwind CSS** — Styling
