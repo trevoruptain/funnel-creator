@@ -139,6 +139,15 @@ export async function POST(request: NextRequest) {
                 createdAt: new Date()
               },
             });
+
+          // Write email to session immediately so we don't rely on
+          // the separate lead/complete events which can get dropped
+          if (data.step_id === 'email' && typeof data.response === 'string' && data.response) {
+            await db
+              .update(sessions)
+              .set({ email: data.response })
+              .where(eq(sessions.id, session.id));
+          }
         }
         break;
       }
