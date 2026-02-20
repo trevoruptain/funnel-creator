@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, ReactNode } from 'react';
 import { funnelAnalytics, FunnelTrackingConfig } from '@/lib/analytics';
 import type { FunnelConfig } from '@/types/funnel';
 
@@ -25,8 +25,11 @@ export function AnalyticsProvider({
   trackingConfig,
   children,
 }: AnalyticsProviderProps) {
+  const didInit = useRef(false);
   useEffect(() => {
-    // Initialize analytics on mount
+    if (didInit.current) return;
+    didInit.current = true;
+
     const firstStep = config.steps?.[0];
     funnelAnalytics.init(
       {

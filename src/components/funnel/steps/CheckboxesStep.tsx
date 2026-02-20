@@ -26,8 +26,8 @@ export function CheckboxesStepComponent({ step }: Props) {
       ? selected.filter((id) => id !== optionId)
       : [...selected, optionId];
     setSelected(newSelected);
-    setResponse(step.id, newSelected);
-    // If an option is selected, hide the "Other" input
+    // Skip pixel tracking on each toggle — final value is sent on Continue
+    setResponse(step.id, newSelected, { skipTracking: true });
     if (showOtherInput && optionId !== 'other') {
       setShowOtherInput(false);
     }
@@ -50,12 +50,12 @@ export function CheckboxesStepComponent({ step }: Props) {
 
   const handleOtherTextChange = (text: string) => {
     setOtherText(text);
-    // Update the response with the other text
     const newSelected = selected.filter(id => id !== 'other');
     if (text.trim()) {
       newSelected.push(`Other: ${text}`);
     }
-    setResponse(step.id, newSelected);
+    setSelected(newSelected);
+    setResponse(step.id, newSelected, { skipTracking: true });
   };
 
   const canContinue =
@@ -65,6 +65,7 @@ export function CheckboxesStepComponent({ step }: Props) {
 
   const handleContinue = () => {
     if (canContinue) {
+      setResponse(step.id, selected);
       goNext();
     }
   };

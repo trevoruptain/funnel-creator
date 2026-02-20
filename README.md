@@ -25,7 +25,7 @@ Create `credentials/` and place your GCP service account JSON there as `vertexai
 
 `GOOGLE_API_KEY` / `GEMINI_API_KEY` are not used; remove them from `.env.local` if present.
 
-Optional (tracking): `NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GOOGLE_ADS_ID`
+Optional (tracking): `NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GOOGLE_ADS_ID`, `META_CAPI_ACCESS_TOKEN`
 
 Push the schema:
 
@@ -81,10 +81,10 @@ WHERE step_id = 'welcome' AND funnel_id = (
 ### Funnel Selection
 
 Load specific funnels via URL parameter:
-- `http://localhost:3000/?funnel=maternal-fetal-399-v1`
+- `http://localhost:3000/?funnel=aurora-399-v1`
 - `http://localhost:3000/?funnel=another-funnel-slug`
 
-Default funnel (when no parameter): `maternal-fetal-399-v1`
+Default funnel (when no parameter): `aurora-399-v1`
 
 ## MCP Server (Claude Code)
 

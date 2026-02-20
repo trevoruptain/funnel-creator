@@ -14,7 +14,7 @@ const TRACKING_CONFIG = {
 
 function FunnelPage() {
   const searchParams = useSearchParams();
-  const funnelSlug = searchParams.get('funnel') || 'maternal-fetal-399-v1'; // Default funnel
+  const funnelSlug = searchParams.get('funnel') || 'aurora-399-v1'; // Default funnel
   
   const [funnelConfig, setFunnelConfig] = useState<FunnelConfig | null>(null);
   const [loading, setLoading] = useState(true);

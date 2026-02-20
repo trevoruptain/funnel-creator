@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { funnelSteps, funnels, responses, sessions, stepViews } from '@/db/schema';
+import { sendCAPIEvents } from '@/lib/meta-capi';
 import { and, desc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -169,6 +170,21 @@ export async function POST(request: NextRequest) {
             })
             .where(eq(sessions.id, session.id));
         }
+
+        // Fire server-side CAPI event (non-blocking)
+        const capiEventName = data.type === 'lead' ? 'Lead' : 'CompleteRegistration';
+        sendCAPIEvents([{
+          eventName: capiEventName,
+          eventId: data.event_id,
+          eventSourceUrl: data.event_source_url,
+          userData: {
+            email: data.email,
+            ip,
+            userAgent,
+            fbc: data.fbc,
+            fbp: data.fbp,
+          },
+        }]);
 
         console.log(`[Funnel ${data.type}] session=${data.session_id} email=${data.email ? '***' : 'n/a'}`);
         break;

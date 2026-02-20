@@ -19,7 +19,7 @@ Returns session-level data. One row per user who started the funnel.
 
 | Param    | Type   | Default | Description |
 |----------|--------|---------|-------------|
-| `funnel` | string | all     | Filter by funnel slug (e.g. `maternal-fetal-399-v1`) |
+| `funnel` | string | all     | Filter by funnel slug (e.g. `aurora-399-v1`) |
 | `status` | string | `all`   | `completed`, `incomplete`, or `all` |
 | `from`   | ISO date | —     | Sessions started on or after this date |
 | `to`     | ISO date | —     | Sessions started on or before this date |
@@ -37,7 +37,7 @@ Returns session-level data. One row per user who started the funnel.
   "sessions": [
     {
       "session_id": "1770896793722-iqkj9o1",
-      "funnel_slug": "maternal-fetal-399-v1",
+      "funnel_slug": "aurora-399-v1",
       "funnel_name": "Discover Aurora",
       "price_variant": "399",
       "email": "john@doe.com",
@@ -114,7 +114,7 @@ Aggregated funnel metrics for dashboards. Returns everything needed to build com
 ```json
 {
   "funnel": {
-    "slug": "maternal-fetal-399-v1",
+    "slug": "aurora-399-v1",
     "name": "Discover Aurora",
     "price_variant": "399"
   },
@@ -175,8 +175,8 @@ Aggregated funnel metrics for dashboards. Returns everything needed to build com
 
 | Slug | Name | Price Variant |
 |------|------|--------------|
-| `maternal-fetal-399-v1` | Discover Aurora | $399 |
-| `maternal-fetal-v1` | Discover Aurora | — |
+| `aurora-399-v1` | Discover Aurora | $399 |
+| `aurora-v1` | Discover Aurora | — |
 
 ## Question Step Types
 

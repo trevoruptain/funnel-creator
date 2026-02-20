@@ -32,9 +32,17 @@ declare global {
 // Pixel is loaded ONCE in root layout (MetaPixel component).
 // Here we only track events — never init.
 
-export function trackMetaEvent(eventName: string, params?: Record<string, unknown>) {
+export function trackMetaEvent(
+  eventName: string,
+  params?: Record<string, unknown>,
+  eventId?: string
+) {
   if (typeof window !== 'undefined' && window.fbq) {
-    window.fbq('track', eventName, params);
+    if (eventId) {
+      window.fbq('track', eventName, params, { eventID: eventId });
+    } else {
+      window.fbq('track', eventName, params);
+    }
   }
 }
 
@@ -153,6 +161,24 @@ export function getStoredUTMParams(): Record<string, string> {
 }
 
 // ============================================================
+// Meta Cookie / Dedup Helpers
+// ============================================================
+
+function generateEventId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
+function getCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match?.[1];
+}
+
+function getMetaCookies() {
+  return { fbc: getCookie('_fbc'), fbp: getCookie('_fbp') };
+}
+
+// ============================================================
 // Unified Funnel Tracking
 // ============================================================
 
@@ -160,6 +186,7 @@ class FunnelAnalytics {
   private config: FunnelTrackingConfig = {};
   private funnelId: string = '';
   private sessionId: string = '';
+  private lastResponseKey: string = '';
 
   init(
     config: FunnelTrackingConfig,
@@ -207,8 +234,12 @@ class FunnelAnalytics {
       utm: getStoredUTMParams(),
     };
 
-    // Meta Pixel
-    trackMetaCustomEvent('FunnelStepView', eventData);
+    // Meta Pixel — send only generic fields (no step_id which reveals health topics)
+    trackMetaCustomEvent('FunnelStepView', {
+      funnel_id: this.funnelId,
+      step_index: stepIndex,
+      step_type: stepType,
+    });
 
     // Google
     trackGoogleEvent('funnel_step_view', eventData);
@@ -219,6 +250,11 @@ class FunnelAnalytics {
 
   // Track answer/response
   trackResponse(stepId: string, response: unknown) {
+    // Dedup identical responses (double-tap or StrictMode double-render)
+    const key = `${stepId}:${JSON.stringify(response)}`;
+    if (key === this.lastResponseKey) return;
+    this.lastResponseKey = key;
+
     const eventData = {
       funnel_id: this.funnelId,
       step_id: stepId,
@@ -227,8 +263,10 @@ class FunnelAnalytics {
       utm: getStoredUTMParams(),
     };
 
-    // Meta Pixel
-    trackMetaCustomEvent('FunnelResponse', eventData);
+    // Meta Pixel — generic signal only (no step_id or response values)
+    trackMetaCustomEvent('FunnelResponse', {
+      funnel_id: this.funnelId,
+    });
 
     // Google
     trackGoogleEvent('funnel_response', eventData);
@@ -239,32 +277,42 @@ class FunnelAnalytics {
 
   // Track email capture (lead)
   trackLead(email: string, additionalData?: Record<string, unknown>) {
+    const eventId = generateEventId();
+    const { fbc, fbp } = getMetaCookies();
+
     const eventData = {
       funnel_id: this.funnelId,
       email: email,
       session_id: this.sessionId,
       utm: getStoredUTMParams(),
+      event_id: eventId,
+      event_source_url: typeof window !== 'undefined' ? window.location.href : undefined,
+      fbc,
+      fbp,
       ...additionalData,
     };
 
-    // Meta Pixel - Standard Lead event
+    // Meta Pixel — shared event_id for CAPI dedup
     trackMetaEvent('Lead', {
       content_name: this.funnelId,
       content_category: 'funnel_signup',
-    });
+    }, eventId);
 
     // Google - Conversion
     trackGoogleEvent('generate_lead', {
       currency: 'USD',
-      value: 1, // Assign a value to leads for ROAS calculation
+      value: 1,
     });
 
-    // Custom tracking
+    // Custom tracking (backend will forward to CAPI)
     this.sendToBackend('lead', eventData);
   }
 
   // Track funnel completion
   trackCompletion(responses: Record<string, unknown>, email?: string) {
+    const eventId = generateEventId();
+    const { fbc, fbp } = getMetaCookies();
+
     const eventData = {
       funnel_id: this.funnelId,
       responses: responses,
@@ -272,18 +320,22 @@ class FunnelAnalytics {
       session_id: this.sessionId,
       utm: getStoredUTMParams(),
       completed_at: new Date().toISOString(),
+      event_id: eventId,
+      event_source_url: typeof window !== 'undefined' ? window.location.href : undefined,
+      fbc,
+      fbp,
     };
 
-    // Meta Pixel - CompleteRegistration
+    // Meta Pixel — shared event_id for CAPI dedup
     trackMetaEvent('CompleteRegistration', {
       content_name: this.funnelId,
       status: 'complete',
-    });
+    }, eventId);
 
     // Google
     trackGoogleEvent('funnel_complete', eventData);
 
-    // Custom tracking - send full response data
+    // Custom tracking (backend will forward to CAPI)
     this.sendToBackend('complete', eventData);
   }
 
@@ -295,7 +347,8 @@ class FunnelAnalytics {
       ...data,
     };
 
-    trackMetaCustomEvent(eventName, eventData);
+    // Meta Pixel — only generic fields, strip step_id and nested objects
+    trackMetaCustomEvent(eventName, { funnel_id: this.funnelId });
     trackGoogleEvent(eventName, eventData);
     this.sendToBackend(eventName, eventData);
   }
