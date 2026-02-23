@@ -20,28 +20,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="flex min-h-screen bg-[#f5f3f9]">
             {/* Sidebar */}
-            <aside className="w-64 bg-white shadow-md fixed left-0 top-0 h-screen flex flex-col">
-                <div className="p-6 border-b">
-                    <h1 className="text-xl font-bold">Ad Pipeline Admin</h1>
+            <aside className="fixed left-0 top-0 z-10 flex h-screen w-64 flex-col border-r border-[#c8c2d8] bg-white shadow-sm">
+                <div className="border-b border-[#e8e4f0] px-5 py-5">
+                    <h1 className="text-lg font-bold tracking-tight text-[#1a1625]">Ad Pipeline Admin</h1>
+                    <p className="mt-0.5 text-xs text-[#6b6480]">Creatives & Funnel Dashboard</p>
                 </div>
-                <nav className="p-4 flex-1">
+                <nav className="flex-1 space-y-0.5 p-3">
                     <Link
-                        href="/admin"
-                        className={`block px-4 py-2 rounded-md mb-2 ${
-                            pathname === '/admin'
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-700 hover:bg-gray-100'
+                        href="/admin/dashboard"
+                        className={`block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                            pathname === '/admin/dashboard'
+                                ? 'bg-[#1753a0] text-white'
+                                : 'text-[#1a1625] hover:bg-[#e8e4f0]'
+                        }`}
+                    >
+                        Funnel Dashboard
+                    </Link>
+                    <Link
+                        href="/admin/creatives"
+                        className={`block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                            pathname === '/admin/creatives'
+                                ? 'bg-[#1753a0] text-white'
+                                : 'text-[#1a1625] hover:bg-[#e8e4f0]'
                         }`}
                     >
                         Creatives Gallery
                     </Link>
                 </nav>
-                <div className="p-4 border-t">
+                <div className="border-t border-[#e8e4f0] p-3">
                     <button
                         onClick={handleLogout}
-                        className="w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                        className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#6b6480] transition-colors hover:bg-[#e8e4f0] hover:text-[#1a1625]"
                     >
                         Logout
                     </button>
@@ -49,7 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </aside>
 
             {/* Main content */}
-            <main className="flex-1 p-8 ml-64">
+            <main className="min-w-0 flex-1 pl-64">
                 {children}
             </main>
         </div>

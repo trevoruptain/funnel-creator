@@ -1,0 +1,129 @@
+/* Aurora Funnel Dashboard - design tokens and components */
+.dashboard {
+  --c1: #b55600;
+  --c2: #b8003c;
+  --c3: #7c0667;
+  --c4: #45108d;
+  --c5: #1753a0;
+  --c6: #0590b9;
+  --bg: #e1deea;
+  --surface: #f5f3f9;
+  --card: #ffffff;
+  --text: #1a1625;
+  --muted: #6b6480;
+  --border: #c8c2d8;
+  --good: #1a7f5a;
+  --good-bg: #d6f0e6;
+  --bad: #b8003c;
+  --bad-bg: #fce8ef;
+  --warn-bg: #fef6e4;
+  --warn: #b55600;
+}
+
+.dashboard-header {
+  background: linear-gradient(135deg, var(--c3) 0%, var(--c4) 40%, var(--c5) 100%);
+}
+
+.dashboard-metric-card .val.accent { color: var(--c5); }
+.dashboard-metric-card .val.green { color: var(--good); }
+.dashboard-metric-card .val.orange { color: var(--c1); }
+
+.dashboard-wf-row {
+  display: grid;
+  grid-template-columns: 165px 1fr 50px 55px;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 3px 0;
+  font-size: 0.8rem;
+}
+
+.dashboard-hbar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 45px;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 3px 0;
+  font-size: 0.8rem;
+}
+
+.dashboard-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--c4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-data-table th {
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  font-weight: 700;
+  border-bottom: 2px solid var(--text);
+  padding: 0.3rem 0.5rem;
+}
+
+.dashboard-data-table th:not(:first-child) {
+  text-align: right;
+}
+
+.dashboard-data-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #ede9f5;
+}
+
+.dashboard-data-table td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-data-table tr.good td {
+  background: var(--good-bg);
+}
+
+.dashboard-data-table tr.bad td {
+  background: var(--bad-bg);
+}
+
+.dashboard-data-table tr.warn td {
+  background: var(--warn-bg);
+}
+
+.dashboard-data-table .gap {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.dashboard-pill-purple {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.dashboard-callout {
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  font-size: 0.85rem;
+  border: 1px solid;
+  margin-top: 1rem;
+}
+
+.dashboard-callout.green {
+  background: var(--good-bg);
+  border-color: #6ee7b7;
+}
+
+.dashboard-callout.yellow {
+  background: var(--warn-bg);
+  border-color: #fcd34d;
+}

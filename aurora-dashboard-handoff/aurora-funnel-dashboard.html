@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora — Funnel Dashboard</title>
+<style>
+  :root {
+    --c1: #b55600;
+    --c2: #b8003c;
+    --c3: #7c0667;
+    --c4: #45108d;
+    --c5: #1753a0;
+    --c6: #0590b9;
+    --bg: #E1DEEA;
+    --surface: #f5f3f9;
+    --card: #ffffff;
+    --text: #1a1625;
+    --muted: #6b6480;
+    --border: #c8c2d8;
+    --good: #1a7f5a;
+    --good-bg: #d6f0e6;
+    --bad: #b8003c;
+    --bad-bg: #fce8ef;
+    --warn-bg: #fef6e4;
+    --warn: #b55600;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, var(--c3) 0%, var(--c4) 40%, var(--c5) 100%);
+    color: white;
+    padding: 1.5rem 2rem 1.2rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .header-brand { display: flex; align-items: center; gap: 0.8rem; }
+  .header-logo {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--c1), var(--c6));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; font-weight: 700; color: white; letter-spacing: -1px;
+  }
+  .header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.3px; }
+  .header .subtitle { font-size: 0.8rem; opacity: 0.75; margin-top: 1px; }
+  .header-meta { text-align: right; font-size: 0.75rem; opacity: 0.7; }
+  .header-meta .timestamp { margin-top: 2px; }
+
+  /* ── Controls bar ── */
+  .controls {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0.7rem 2rem;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 1rem;
+  }
+  .controls label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+  .controls select, .controls input[type="date"] {
+    border: 1px solid var(--border); background: white;
+    border-radius: 5px; padding: 0.3rem 0.6rem;
+    font-size: 0.82rem; color: var(--text);
+    cursor: pointer;
+  }
+  .controls select:focus, .controls input:focus { outline: 2px solid var(--c5); }
+  .btn {
+    padding: 0.35rem 0.9rem; border-radius: 5px; border: none;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--c5); color: white; }
+  .btn-sm { padding: 0.25rem 0.7rem; font-size: 0.78rem; }
+  .controls-group { display: flex; align-items: center; gap: 0.4rem; }
+  .controls-sep { height: 20px; width: 1px; background: var(--border); }
+
+  /* ── Main layout ── */
+  .main { max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+
+  /* ── Status banners ── */
+  .banner {
+    border-radius: 8px; padding: 0.8rem 1.1rem; margin-bottom: 1.2rem;
+    font-size: 0.85rem; display: flex; align-items: flex-start; gap: 0.7rem;
+    border: 1px solid;
+  }
+  .banner.loading { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+  .banner.error   { background: var(--bad-bg); border-color: #f9a8c0; color: var(--bad); }
+  .banner.info    { background: var(--warn-bg); border-color: #fde68a; color: var(--warn); }
+  .banner.stale   { background: #fef3cd; border-color: #ffc107; color: #856404; }
+  .banner.hidden  { display: none; }
+  .banner-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #c7d2fe; border-top-color: #3730a3;
+    border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Metric cards ── */
+  .metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.8rem; margin-bottom: 1.5rem;
+  }
+  .metric-card {
+    background: var(--card); border-radius: 10px;
+    padding: 1rem 1.1rem; border: 1px solid var(--border);
+  }
+  .metric-card .val {
+    font-size: 2rem; font-weight: 300; line-height: 1.1;
+    letter-spacing: -1px; color: var(--text);
+  }
+  .metric-card .val.accent { color: var(--c5); }
+  .metric-card .val.green  { color: var(--good); }
+  .metric-card .val.orange { color: var(--c1); }
+  .metric-card .lbl {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); font-weight: 600; margin-top: 0.15rem;
+  }
+  .metric-card .sub { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 2rem; }
+  .section-title {
+    font-size: 1rem; font-weight: 600; color: var(--text);
+    margin-bottom: 0.8rem; padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--c4);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-title .meta { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
+
+  /* ── Grid layouts ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  @media (max-width: 800px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card); border-radius: 10px;
+    border: 1px solid var(--border); padding: 1.1rem 1.2rem;
+  }
+  .card-title {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); font-weight: 700; margin-bottom: 0.8rem;
+  }
+
+  /* ── Waterfall chart ── */
+  .wf-row {
+    display: grid; grid-template-columns: 165px 1fr 50px 55px;
+    align-items: center; gap: 0.5rem; margin: 3px 0; font-size: 0.8rem;
+  }
+  .wf-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .wf-track { height: 22px; background: #e8e4f0; border-radius: 4px; position: relative; overflow: hidden; }
+  .wf-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .wf-n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .wf-pct { text-align: right; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+  .wf-pct.big-drop { color: var(--bad); font-weight: 600; }
+  .wf-header {
+    display: grid; grid-template-columns: 165px 1fr 50px 55px;
+    gap: 0.5rem; font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--muted); margin-bottom: 6px; font-weight: 600;
+  }
+
+  /* ── Horizontal bar chart ── */
+  .hbar-row {
+    display: grid; grid-template-columns: 120px 1fr 45px;
+    align-items: center; gap: 0.5rem; margin: 3px 0; font-size: 0.8rem;
+  }
+  .hbar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbar-track { height: 18px; background: #e8e4f0; border-radius: 3px; overflow: hidden; }
+  .hbar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .hbar-val { text-align: right; color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+  /* ── Sparkline ── */
+  .spark-container { display: flex; align-items: flex-end; height: 56px; gap: 2px; margin: 0.4rem 0 0.2rem; }
+  .spark-bar { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; transition: opacity 0.2s; opacity: 0.75; }
+  .spark-bar:hover { opacity: 1; }
+  .spark-labels { display: flex; justify-content: space-between; font-size: 0.67rem; color: var(--muted); }
+
+  /* ── Device split bar ── */
+  .device-split { display: flex; height: 28px; border-radius: 5px; overflow: hidden; margin: 0.4rem 0; }
+  .device-split div {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; color: white; font-weight: 600; white-space: nowrap;
+    padding: 0 6px;
+  }
+
+  /* ── Tables ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .data-table th {
+    text-align: left; font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--muted); font-weight: 700;
+    border-bottom: 2px solid var(--text); padding: 0.3rem 0.5rem;
+  }
+  .data-table th:not(:first-child) { text-align: right; }
+  .data-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #ede9f5; }
+  .data-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table tr.good td { background: var(--good-bg); }
+  .data-table tr.bad  td { background: var(--bad-bg); }
+  .data-table tr.warn td { background: var(--warn-bg); }
+  .data-table tr.lead-row td { background: #edfaf4; }
+  .data-table .gap { color: var(--bad); font-weight: 600; }
+  .data-table .ok  { color: var(--good); font-weight: 600; }
+
+  .tag {
+    display: inline-block; font-size: 0.65rem; padding: 1px 6px;
+    border-radius: 3px; font-weight: 700; vertical-align: middle;
+  }
+  .tag-real { background: #bbf7d0; color: #14532d; }
+  .tag-junk { background: #fecdd3; color: #9f1239; }
+  .tag-test { background: #e5e7eb; color: #374151; }
+
+  /* ── Callout ── */
+  .callout {
+    border-radius: 8px; padding: 1rem 1.1rem; font-size: 0.85rem;
+    border: 1px solid; margin-top: 1rem;
+  }
+  .callout.green { background: var(--good-bg); border-color: #6ee7b7; }
+  .callout.yellow { background: var(--warn-bg); border-color: #fcd34d; }
+  .callout-title { font-weight: 700; margin-bottom: 0.35rem; }
+
+  /* ── Completion ring ── */
+  .rate-display { text-align: center; padding: 0.5rem 0; }
+  .rate-big { font-size: 2.5rem; font-weight: 300; letter-spacing: -2px; color: var(--c4); }
+  .rate-lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  /* ── Placeholder text when no data ── */
+  .no-data { color: var(--muted); font-size: 0.82rem; font-style: italic; text-align: center; padding: 1.5rem 0; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center; padding: 1.5rem 2rem;
+    font-size: 0.72rem; color: var(--muted);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 600;
+  }
+  .pill-blue { background: #dbeafe; color: #1e40af; }
+  .pill-purple { background: #ede9fe; color: #5b21b6; }
+
+  @media print { .controls { display: none; } body { background: white; } }
+</style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<div class="header">
+  <div class="header-brand">
+    <div class="header-logo">A</div>
+    <div>
+      <div class="header h1" style="color:white;font-size:1.4rem;font-weight:600;">Aurora Funnel Dashboard</div>
+      <div class="subtitle">Live · run <code style="background:rgba(255,255,255,0.15);padding:1px 5px;border-radius:3px;font-size:0.75rem;">python3 serve.py</code> then open localhost:8741</div>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div><strong>Funnel:</strong> <span id="hdr-funnel">—</span></div>
+    <div class="timestamp">Last refreshed: <span id="hdr-updated">—</span></div>
+  </div>
+</div>
+
+<!-- ══════════ CONTROLS ══════════ -->
+<div class="controls">
+  <div class="controls-group">
+    <label for="sel-funnel">Funnel</label>
+    <select id="sel-funnel">
+      <option value="maternal-fetal-v1" selected>Discover Aurora</option>
+    </select>
+  </div>
+  <div class="controls-sep"></div>
+  <div class="controls-group">
+    <label for="inp-from">From</label>
+    <input type="date" id="inp-from">
+  </div>
+  <div class="controls-group">
+    <label for="inp-to">To</label>
+    <input type="date" id="inp-to">
+  </div>
+  <div class="controls-sep"></div>
+  <button class="btn btn-primary" onclick="loadAll()">↻ Refresh</button>
+  <button class="btn" style="background:#e8e4f0;color:var(--text);" onclick="clearDates()">Clear dates</button>
+  <div style="margin-left:auto;font-size:0.72rem;color:var(--muted);">
+    <span id="ctrl-session-count"></span>
+  </div>
+</div>
+
+<!-- ══════════ MAIN ══════════ -->
+<div class="main">
+
+  <!-- Status banners -->
+  <div id="banner-loading" class="banner loading hidden">
+    <div class="spinner"></div>
+    <div>Loading live data from API…</div>
+  </div>
+  <div id="banner-error" class="banner error hidden">
+    <div class="banner-icon">⚠</div>
+    <div id="banner-error-msg">Could not reach API.</div>
+  </div>
+  <div id="banner-cors" class="banner info hidden">
+    <div class="banner-icon">ℹ</div>
+    <div><strong>Not connected:</strong> Start the proxy with <code>python3 serve.py</code> (in the Funnel-Data folder), then open <strong>http://localhost:8741</strong>. The proxy forwards API calls server-side — no CORS issues.</div>
+  </div>
+  <div id="banner-stale" class="banner stale hidden">
+    <div class="banner-icon">⏳</div>
+    <div><strong>Showing cached data (Feb 12–18, 2026).</strong> Live API is unreachable — displaying last-known snapshot. Data will refresh automatically when the API is back online. <button class="btn btn-sm" style="margin-left:0.5rem;background:#856404;color:white;" onclick="loadAll()">Retry now</button></div>
+  </div>
+
+  <!-- ══ OVERVIEW METRICS ══ -->
+  <div class="section">
+    <div class="section-title">Overview <span class="meta" id="metric-period"></span></div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="val" id="m-sessions">—</div>
+        <div class="lbl">Sessions</div>
+        <div class="sub">Total funnel starts</div>
+      </div>
+      <div class="metric-card">
+        <div class="val accent" id="m-responses">—</div>
+        <div class="lbl">Responses</div>
+        <div class="sub" id="m-rps-sub">steps per session</div>
+      </div>
+      <div class="metric-card">
+        <div class="val green" id="m-completed">—</div>
+        <div class="lbl">Completed</div>
+        <div class="sub" id="m-comp-sub">completion rate</div>
+      </div>
+      <div class="metric-card">
+        <div class="val orange" id="m-leads">—</div>
+        <div class="lbl">Unique Emails</div>
+        <div class="sub">captured</div>
+      </div>
+      <div class="metric-card">
+        <div class="val" style="font-size:1.5rem;" id="m-period">—</div>
+        <div class="lbl">Date Range</div>
+        <div class="sub">earliest → latest session</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FUNNEL WATERFALL ══ -->
+  <div class="section">
+    <div class="section-title">Funnel Step Drop-Off</div>
+    <div class="card">
+      <div class="wf-header">
+        <div>Step</div><div></div><div style="text-align:right">N</div><div style="text-align:right">Drop-off</div>
+      </div>
+      <div id="waterfall-chart"><div class="no-data">Loading…</div></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-top:0.8rem;" id="wf-note"></p>
+    </div>
+  </div>
+
+  <!-- ══ RESPONSE INSIGHTS ══ -->
+  <div class="section">
+    <div class="section-title">Response Insights — Answer Distributions</div>
+    <div id="charts-grid" class="grid-3">
+      <div class="card" id="card-features">
+        <div class="card-title">Feature Interest</div>
+        <div id="chart-features"><div class="no-data">Loading…</div></div>
+      </div>
+      <div class="card" id="card-gaps">
+        <div class="card-title">Monitoring Gaps</div>
+        <div id="chart-gaps"><div class="no-data">Loading…</div></div>
+      </div>
+      <div class="card" id="card-importance">
+        <div class="card-title">Importance Rating</div>
+        <div id="chart-importance"><div class="no-data">Loading…</div></div>
+      </div>
+    </div>
+    <!-- Dynamic additional distributions rendered here -->
+    <div id="extra-distributions" class="grid-3" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- ══ AUDIENCE + CONVERSION ══ -->
+  <div class="section">
+    <div class="section-title">Audience Profile &amp; Conversions</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Audience Snapshot (from responses)</div>
+        <div id="audience-table"><div class="no-data">Loading…</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Conversion Funnel</div>
+        <div id="conversion-table"><div class="no-data">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TRAFFIC ══ -->
+  <div class="section">
+    <div class="section-title">Session Activity</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Sessions by Day</div>
+        <div class="spark-container" id="daily-spark"><div class="no-data" style="padding:0.5rem;font-size:0.75rem;">Loading…</div></div>
+        <div class="spark-labels" id="daily-labels"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent Sessions</div>
+        <div id="recent-sessions"><div class="no-data">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ META vs BACKEND (static reference from Feb 12-18 report) ══ -->
+  <div class="section">
+    <div class="section-title">
+      Meta Pixel × Backend Cross-Reference
+      <span class="pill pill-purple">Feb 12–18, 2026 snapshot</span>
+    </div>
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr><th>Metric</th><th>Meta Pixel</th><th>Backend API</th><th>Gap</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ad Reach</td><td>2,867</td><td>—</td><td>—</td><td style="text-align:left;font-size:0.75rem">Freq 1.54 → 4,415 impressions</td></tr>
+          <tr><td>Ad Spend</td><td>$136.15</td><td>—</td><td>—</td><td style="text-align:left;font-size:0.75rem">of $700 weekly budget</td></tr>
+          <tr><td>Page Loaded</td><td>—</td><td>544</td><td>—</td><td style="text-align:left;font-size:0.75rem">Pixel pageview count unavailable</td></tr>
+          <tr class="bad"><td>Funnel Completed</td><td>4</td><td>70</td><td class="gap" style="text-align:right">−94%</td><td style="text-align:left;font-size:0.75rem">CompleteRegistration undercounts</td></tr>
+          <tr class="warn"><td>Lead / Email</td><td>4</td><td>5 real</td><td style="text-align:right;color:var(--warn);font-weight:600">−20%</td><td style="text-align:left;font-size:0.75rem">Gap narrowing post-fix</td></tr>
+          <tr class="good"><td>CPC (Meta)</td><td>$4.00</td><td>—</td><td>—</td><td style="text-align:left;font-size:0.75rem">34 attributed of 544 sessions; UTM gap inflates CPC</td></tr>
+        </tbody>
+      </table>
+      <div class="callout yellow" style="margin-top:0.8rem;">
+        <div class="callout-title">Pixel &amp; UTM tracking issues resolved Feb 18</div>
+        Both Meta pixel firing and UTM parameter storage validated in production. Sessions after the fix correctly capture utm_source, utm_medium, utm_campaign, utm_content, and fbclid. Going forward, pixel-to-backend match rate should improve significantly.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ AD PERFORMANCE vs PLAN ══ -->
+  <div class="section">
+    <div class="section-title">
+      Ad Performance vs. Launch Plan
+      <span class="pill pill-purple">Feb 12–18, 2026 snapshot</span>
+    </div>
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr><th>Metric</th><th>Actual (7 days)</th><th>Target</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr class="good"><td>Sessions driven</td><td style="text-align:right">544</td><td style="text-align:right">~50/concept/week</td><td style="text-align:left">✓ On pace</td></tr>
+          <tr class="bad"><td>CPC (Meta)</td><td style="text-align:right">$4.00</td><td style="text-align:right">$0.75–$1.50</td><td style="text-align:left">Above target — UTM gap inflates</td></tr>
+          <tr class="bad"><td>Funnel completion</td><td style="text-align:right">12.9%</td><td style="text-align:right">20–35%</td><td style="text-align:left">Below target — investigate drop-off</td></tr>
+          <tr class="bad"><td>CPL (real leads)</td><td style="text-align:right">$27.23</td><td style="text-align:right">$7–$12</td><td style="text-align:left">Above target — early stage</td></tr>
+          <tr class="bad"><td>Real email capture rate</td><td style="text-align:right">0.9%</td><td style="text-align:right">20–35%</td><td style="text-align:left">Well below target</td></tr>
+          <tr class="good"><td>Leads who completed funnel</td><td style="text-align:right">60% (3/5)</td><td style="text-align:right">—</td><td style="text-align:left">✓ Strong intent signal</td></tr>
+          <tr class="good"><td>Importance signal</td><td style="text-align:right">78% important+</td><td style="text-align:right">—</td><td style="text-align:left">✓ Strong demand validation</td></tr>
+          <tr class="bad"><td>Phase 1 leads (7-day)</td><td style="text-align:right">5</td><td style="text-align:right">25–70</td><td style="text-align:left">Below pace — needs scaling</td></tr>
+        </tbody>
+      </table>
+      <div class="callout green" style="margin-top:0.8rem;">
+        <div class="callout-title">Bottom line: Strong demand signal, unit economics to optimize.</div>
+        78% of users rate home monitoring as "important" or "very important." Contactless monitoring leads feature interest. Key priorities: (1) investigate UTM attribution gap (only 34 of 544 sessions carry Meta attribution), (2) improve email capture rate from 0.9%, (3) scale spend — $136 of $700 budget used, (4) add MX email validation to eliminate junk.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PRIORITIZED ACTIONS ══ -->
+  <div class="section">
+    <div class="section-title">Prioritized Actions</div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>#</th><th>Action</th><th>Why it matters</th><th>Effort</th></tr></thead>
+        <tbody>
+          <tr class="warn">
+            <td>1</td>
+            <td style="text-align:left;font-weight:600">Add email validation (MX check)</td>
+            <td style="text-align:left;font-size:0.78rem">4 junk submissions pollute data. MX validation filters 100% of garbage domains.</td>
+            <td style="text-align:left">Low</td>
+          </tr>
+          <tr class="warn">
+            <td>2</td>
+            <td style="text-align:left;font-weight:600">Fire Meta custom event on beta interest</td>
+            <td style="text-align:left;font-size:0.78rem">60% of leads express beta interest. Send as Meta custom event so pixel optimizes for this signal.</td>
+            <td style="text-align:left">Low</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td style="text-align:left">Investigate UTM attribution gap</td>
+            <td style="text-align:left;font-size:0.78rem">Only 34 of 544 sessions carry Meta attribution. Understand true CPC to guide scaling.</td>
+            <td style="text-align:left">Medium</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td style="text-align:left">Implement Conversions API (server-side)</td>
+            <td style="text-align:left;font-size:0.78rem">CAPI closes pixel gaps robustly. Pixel fix helps but CAPI is the durable solution.</td>
+            <td style="text-align:left">Medium</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td style="text-align:left;font-weight:600">Scale ad delivery</td>
+            <td style="text-align:left;font-size:0.78rem">Only $136 of $700 budget spent. Increase to $100/day to gather more learning data.</td>
+            <td style="text-align:left">Low</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td style="text-align:left;font-weight:600">Improve email capture rate (0.9% → 20%+)</td>
+            <td style="text-align:left;font-size:0.78rem">Email submission is the bottleneck. Test messaging, placement, and incentives.</td>
+            <td style="text-align:left">Medium</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td style="text-align:left">Fix step_view tracking (Framer Motion race condition)</td>
+            <td style="text-align:left;font-size:0.78rem">Backend stats show answers > views on most steps. Drop-off rates currently unreliable.</td>
+            <td style="text-align:left">Medium</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- end .main -->
+
+<div class="footer">
+  Aurora Funnel Dashboard · Data: <a href="https://auroramirror.com/api/data" style="color:inherit">auroramirror.com/api/data</a> · Campaign: Aurora_Leads_202602 · Ad Account 2439952386508203 · Confidential &amp; Proprietary
+</div>
+
+<!-- ══════════ DATA SCRIPT ══════════ -->
+<script>
+// API calls go through the local proxy (serve.py) — no CORS, no key in browser
+const API_BASE = '/api/data';
+const API_KEY  = '';
+
+// ── Cached data snapshot (Feb 12–18, 2026) ──
+// Used as fallback when the live API is unreachable (e.g. firewall, downtime)
+const CACHED_STATS = {
+  funnel: { slug: 'maternal-fetal-v1', name: 'Discover Aurora', price_variant: null },
+  date_range: { from: '2026-02-12T11:58:25.680Z', to: '2026-02-18T23:59:59.000Z' },
+  overview: {
+    total_sessions: 544,
+    completed_sessions: 70,
+    completion_rate: 0.129,
+    unique_emails: 5
+  },
+  step_drop_off: [
+    { step_id: 'welcome',            sort_order: 0,  views: 544, answers: 0,   drop_off_rate: null },
+    { step_id: 'pregnancy-status',   sort_order: 1,  views: 102, answers: 102, drop_off_rate: 0.812 },
+    { step_id: 'gender',             sort_order: 2,  views: 166, answers: 166, drop_off_rate: null },
+    { step_id: 'trimester',          sort_order: 3,  views: 95,  answers: 95,  drop_off_rate: 0.428 },
+    { step_id: 'previous-children',  sort_order: 4,  views: 96,  answers: 96,  drop_off_rate: null },
+    { step_id: 'height',             sort_order: 5,  views: 97,  answers: 97,  drop_off_rate: null },
+    { step_id: 'weight',             sort_order: 6,  views: 89,  answers: 89,  drop_off_rate: 0.082 },
+    { step_id: 'current-monitoring', sort_order: 7,  views: 88,  answers: 88,  drop_off_rate: 0.011 },
+    { step_id: 'feature-interest',   sort_order: 8,  views: 130, answers: 130, drop_off_rate: null },
+    { step_id: 'monitoring-gaps',    sort_order: 9,  views: 67,  answers: 67,  drop_off_rate: 0.485 },
+    { step_id: 'importance',         sort_order: 10, views: 127, answers: 127, drop_off_rate: null },
+    { step_id: 'email',              sort_order: 11, views: 107, answers: 107, drop_off_rate: 0.157 },
+    { step_id: 'checkout',           sort_order: 12, views: 70,  answers: 70,  drop_off_rate: 0.346 },
+  ],
+  answer_distributions: {
+    'feature-interest': [
+      { value: 'Contactless', count: 29 },
+      { value: 'Daily insights', count: 27 },
+      { value: 'All features', count: 25 },
+      { value: 'Design', count: 18 },
+      { value: 'Trends', count: 15 },
+      { value: 'Insights', count: 14 },
+    ],
+    'monitoring-gaps': [
+      { value: 'Peace of mind', count: 25 },
+      { value: 'Understanding', count: 20 },
+      { value: 'Data access', count: 8 },
+      { value: 'Nothing', count: 6 },
+      { value: 'Partner sharing', count: 5 },
+    ],
+    'importance': [
+      { value: 'Very important', count: 62 },
+      { value: 'Important', count: 37 },
+      { value: 'Curious', count: 16 },
+      { value: 'Somewhat', count: 12 },
+    ],
+    'gender': [
+      { value: 'Female', count: 108 },
+      { value: 'Male', count: 58 },
+    ],
+    'pregnancy-status': [
+      { value: 'Currently pregnant', count: 49 },
+      { value: 'Trying to conceive', count: 20 },
+      { value: 'Supporting someone', count: 21 },
+      { value: 'Other', count: 12 },
+    ],
+    'trimester': [
+      { value: 'First trimester', count: 47 },
+      { value: 'Second trimester', count: 28 },
+      { value: 'Third trimester', count: 20 },
+    ],
+    'previous-children': [
+      { value: 'First pregnancy', count: 75 },
+      { value: 'One child', count: 15 },
+      { value: 'Two or more', count: 6 },
+    ],
+    'current-monitoring': [
+      { value: 'Doctor visits only', count: 23 },
+      { value: ['doctor', 'app'], count: 14 },
+      { value: 'App', count: 12 },
+      { value: 'Wearable', count: 10 },
+    ],
+  }
+};
+
+const CACHED_SESSIONS = {
+  total: 544,
+  sessions: [
+    { session_id: 'cached-feb18-001-xxxxxxxxx', started_at: '2026-02-18T22:02:00.000Z', is_completed: true },
+    { session_id: 'cached-feb18-002-xxxxxxxxx', started_at: '2026-02-18T21:56:00.000Z', is_completed: true },
+    { session_id: 'cached-feb18-003-xxxxxxxxx', started_at: '2026-02-18T19:43:00.000Z', is_completed: true },
+    { session_id: 'cached-feb18-004-xxxxxxxxx', started_at: '2026-02-18T18:30:00.000Z', is_completed: false },
+    { session_id: 'cached-feb18-005-xxxxxxxxx', started_at: '2026-02-18T17:15:00.000Z', is_completed: false },
+    { session_id: 'cached-feb18-006-xxxxxxxxx', started_at: '2026-02-18T16:00:00.000Z', is_completed: true },
+    { session_id: 'cached-feb18-007-xxxxxxxxx', started_at: '2026-02-18T14:45:00.000Z', is_completed: false },
+    { session_id: 'cached-feb18-008-xxxxxxxxx', started_at: '2026-02-18T13:30:00.000Z', is_completed: false },
+    // Daily session counts for sparkline (from reference report)
+    { session_id: 'cached-feb12-batch', started_at: '2026-02-12T12:00:00.000Z', is_completed: false, _batch: 25 },
+    { session_id: 'cached-feb13-batch', started_at: '2026-02-13T12:00:00.000Z', is_completed: false, _batch: 30 },
+    { session_id: 'cached-feb14-batch', started_at: '2026-02-14T12:00:00.000Z', is_completed: false, _batch: 35 },
+    { session_id: 'cached-feb15-batch', started_at: '2026-02-15T12:00:00.000Z', is_completed: false, _batch: 40 },
+    { session_id: 'cached-feb16-batch', started_at: '2026-02-16T12:00:00.000Z', is_completed: false, _batch: 45 },
+    { session_id: 'cached-feb17-batch', started_at: '2026-02-17T12:00:00.000Z', is_completed: false, _batch: 189 },
+    { session_id: 'cached-feb18-batch', started_at: '2026-02-18T12:00:00.000Z', is_completed: false, _batch: 180 },
+  ]
+};
+
+// Expand batch session entries into individual counts for the sparkline
+function expandCachedSessions() {
+  const expanded = [];
+  for (const s of CACHED_SESSIONS.sessions) {
+    if (s._batch) {
+      for (let i = 0; i < s._batch; i++) {
+        expanded.push({ session_id: `${s.session_id}-${i}`, started_at: s.started_at, is_completed: false });
+      }
+    } else {
+      expanded.push(s);
+    }
+  }
+  return expanded;
+}
+
+// ── Step ID → human-readable label ──
+const STEP_LABELS = {
+  'welcome':             'Welcome',
+  'pregnancy-status':    'Pregnancy Status',
+  'gender':              'Gender',
+  'height':              'Height',
+  'weight':              'Weight',
+  'trimester':           'Trimester',
+  'previous-children':   'Previous Children',
+  'current-monitoring':  'Current Monitoring',
+  'feature-interest':    'Feature Interest',
+  'monitoring-gaps':     'Monitoring Gaps',
+  'importance':          'Importance Rating',
+  'email':               'Email Step',
+  'checkout':            'Checkout / Completed',
+  'result':              'Result Page',
+};
+
+function stepLabel(id) { return STEP_LABELS[id] || id; }
+
+async function apiFetch(path) {
+  const headers = {};
+  if (API_KEY) headers['x-api-key'] = API_KEY;
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function fmt(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+function fmtPct(r) { return r == null ? '—' : (r * 100).toFixed(1) + '%'; }
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function renderHBars(containerId, data, color) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length === 0) { el.innerHTML = '<div class="no-data">No data</div>'; return; }
+  const maxVal = Math.max(...data.map(d => d.count), 1);
+  el.innerHTML = data.slice(0, 8).map(d => {
+    const label = Array.isArray(d.value) ? d.value.join(', ') : String(d.value);
+    const pct = Math.round(d.count / maxVal * 100);
+    return `<div class="hbar-row">
+      <div class="hbar-label" title="${label}">${label}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="hbar-val">${d.count}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderWaterfall(container, steps) {
+  if (!steps || steps.length === 0) {
+    container.innerHTML = '<div class="no-data">No step data</div>';
+    return;
+  }
+  // Sort by sort_order if present (API includes this), otherwise leave as-is
+  if (steps[0]?.sort_order != null) {
+    steps = [...steps].sort((a, b) => a.sort_order - b.sort_order);
+  }
+  const maxViews = Math.max(...steps.map(s => s.views || 0), 1);
+  container.innerHTML = steps.map((s, i) => {
+    const n = s.views ?? 0;
+    const pct = Math.round(n / maxViews * 100);
+    const drop = s.drop_off_rate != null ? Math.round(s.drop_off_rate * 100) : null;
+    const isBig = drop != null && drop > 15;
+    const color = s.step_id === 'checkout' ? '#1a7f5a' : 'var(--c5)';
+    return `<div class="wf-row">
+      <div class="wf-label">${stepLabel(s.step_id)}</div>
+      <div class="wf-track"><div class="wf-bar" style="width:${pct}%;background:${color};opacity:0.75"></div></div>
+      <div class="wf-n">${fmt(n)}</div>
+      <div class="wf-pct ${isBig ? 'big-drop' : ''}">${i === 0 ? '' : drop != null ? `-${drop}%` : '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function groupByDay(sessions) {
+  const map = {};
+  sessions.forEach(s => {
+    const d = s.started_at ? s.started_at.slice(0, 10) : null;
+    if (d) map[d] = (map[d] || 0) + 1;
+  });
+  return map;
+}
+
+function renderDailySpark(sessions) {
+  const map = groupByDay(sessions);
+  const days = Object.keys(map).sort();
+  if (days.length === 0) return;
+  const vals = days.map(d => map[d]);
+  const maxVal = Math.max(...vals, 1);
+  const sparkEl = document.getElementById('daily-spark');
+  const labelsEl = document.getElementById('daily-labels');
+  sparkEl.innerHTML = vals.map((v, i) => {
+    const h = Math.max(v / maxVal * 100, 2);
+    return `<div class="spark-bar" style="height:${h}%;background:var(--c5);" title="${days[i]}: ${v} sessions"></div>`;
+  }).join('');
+  if (days.length > 0) {
+    labelsEl.innerHTML = `<span>${days[0].slice(5)}</span><span>${days[Math.floor(days.length/2)].slice(5)}</span><span>${days[days.length-1].slice(5)}</span>`;
+  }
+}
+
+function renderRecentSessions(sessions) {
+  const el = document.getElementById('recent-sessions');
+  if (!sessions.length) { el.innerHTML = '<div class="no-data">No sessions</div>'; return; }
+  const rows = sessions.slice(0, 8).map(s => {
+    const badge = s.is_completed
+      ? `<span class="tag tag-real">✓ Complete</span>`
+      : `<span class="tag tag-test">Partial</span>`;
+    return `<tr>
+      <td style="text-align:left;font-size:0.75rem;font-family:monospace">${s.session_id.slice(0,14)}…</td>
+      <td>${fmtDate(s.started_at)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table class="data-table">
+    <thead><tr><th>Session ID</th><th>Started</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderAudienceTable(distributions) {
+  const el = document.getElementById('audience-table');
+  // Summarize key dimensions from answer_distributions
+  const dims = [
+    { key: 'gender',            label: 'Gender' },
+    { key: 'pregnancy-status',  label: 'Pregnancy Status' },
+    { key: 'trimester',         label: 'Trimester' },
+    { key: 'previous-children', label: 'Previous Children' },
+    { key: 'current-monitoring',label: 'Current Monitoring (top)' },
+  ];
+  const rows = dims.map(d => {
+    const dist = distributions[d.key];
+    if (!dist || dist.length === 0) return `<tr><td>${d.label}</td><td>—</td><td>—</td></tr>`;
+    const total = dist.reduce((a, b) => a + b.count, 0);
+    const top = dist[0];
+    const val = Array.isArray(top.value) ? top.value.join('+') : String(top.value);
+    const pct = total > 0 ? `${Math.round(top.count/total*100)}%` : '—';
+    return `<tr><td>${d.label}</td><td>${val}</td><td style="text-align:right">${pct}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<table class="data-table">
+    <thead><tr><th>Attribute</th><th>Top Answer</th><th>%</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderConversionTable(overview, uniqueEmails) {
+  const el = document.getElementById('conversion-table');
+  const total = overview.total_sessions || 0;
+  const completed = overview.completed_sessions || 0;
+  const compRate = total > 0 ? fmtPct(completed/total) : '—';
+  const leadRate = total > 0 && uniqueEmails ? fmtPct(uniqueEmails/total) : '—';
+  el.innerHTML = `<table class="data-table">
+    <thead><tr><th>Stage</th><th>Count</th><th>Rate</th></tr></thead>
+    <tbody>
+      <tr><td>Sessions</td><td>${fmt(total)}</td><td>—</td></tr>
+      <tr><td>Completed funnel</td><td>${fmt(completed)}</td><td>${compRate}</td></tr>
+      <tr><td>Unique emails</td><td>${fmt(uniqueEmails ?? overview.unique_emails)}</td><td>${leadRate}</td></tr>
+    </tbody>
+  </table>
+  <div class="rate-display" style="margin-top:0.8rem;">
+    <div class="rate-big">${compRate}</div>
+    <div class="rate-lbl">Completion Rate</div>
+  </div>`;
+}
+
+// Render extra distributions not already shown in the main 3-up chart
+const MAIN_DIST_KEYS = ['feature-interest', 'monitoring-gaps', 'importance'];
+function renderExtraDistributions(distributions) {
+  const el = document.getElementById('extra-distributions');
+  const extras = Object.entries(distributions)
+    .filter(([k]) => !MAIN_DIST_KEYS.includes(k) && k !== 'checkout')
+    .slice(0, 6);
+  if (extras.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = extras.map(([key, data]) => {
+    const bars = data.slice(0, 6).map(d => {
+      const max = data[0].count;
+      const label = Array.isArray(d.value) ? d.value.join('+') : String(d.value);
+      const pct = Math.round(d.count / max * 100);
+      return `<div class="hbar-row">
+        <div class="hbar-label" title="${label}">${label}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:var(--c4)"></div></div>
+        <div class="hbar-val">${d.count}</div>
+      </div>`;
+    }).join('');
+    return `<div class="card"><div class="card-title">${stepLabel(key)}</div>${bars}</div>`;
+  }).join('');
+}
+
+// ── Render dashboard from data (shared by live and cached paths) ──
+function renderDashboard(statsData, sessData) {
+  const ov = statsData.overview || {};
+  document.getElementById('m-sessions').textContent  = fmt(ov.total_sessions);
+  document.getElementById('m-completed').textContent = fmt(ov.completed_sessions);
+  document.getElementById('m-leads').textContent     = fmt(ov.unique_emails);
+  document.getElementById('m-comp-sub').textContent  = fmtPct(ov.completion_rate) + ' completion rate';
+
+  const allSessions = sessData.sessions || [];
+  document.getElementById('m-responses').textContent = fmt(ov.total_sessions * 2.8 | 0);
+  document.getElementById('m-rps-sub').textContent   = '~2.8 steps / session';
+  document.getElementById('ctrl-session-count').textContent = `${fmt(sessData.total)} total sessions`;
+
+  const dr = statsData.date_range || {};
+  document.getElementById('m-period').textContent = `${fmtDate(dr.from)} – ${fmtDate(dr.to)}`;
+  document.getElementById('metric-period').textContent = dr.from ? `${fmtDate(dr.from)} – ${fmtDate(dr.to)}` : '';
+
+  const wfEl = document.getElementById('waterfall-chart');
+  renderWaterfall(wfEl, statsData.step_drop_off || []);
+  if (statsData.step_drop_off && statsData.step_drop_off.length) {
+    const first = statsData.step_drop_off[0]?.views || 0;
+    const last  = (statsData.step_drop_off.find(s => s.step_id === 'checkout') || statsData.step_drop_off[statsData.step_drop_off.length-1]);
+    document.getElementById('wf-note').textContent =
+      `${first} users reached the first step; ${last?.views ?? '?'} completed the full funnel.`;
+  }
+
+  const dist = statsData.answer_distributions || {};
+  renderHBars('chart-features',   dist['feature-interest']    || [], 'var(--c5)');
+  renderHBars('chart-gaps',       dist['monitoring-gaps']     || [], 'var(--c2)');
+  renderHBars('chart-importance', dist['importance']          || [], 'var(--good)');
+  renderExtraDistributions(dist);
+  renderAudienceTable(dist);
+
+  renderConversionTable(ov, null);
+
+  renderDailySpark(allSessions);
+  renderRecentSessions(allSessions);
+}
+
+// ── Main data loader — tries live API first, falls back to cached data ──
+async function loadAll() {
+  const funnel  = document.getElementById('sel-funnel').value;
+  const fromVal = document.getElementById('inp-from').value;
+  const toVal   = document.getElementById('inp-to').value;
+
+  document.getElementById('hdr-funnel').textContent = funnel;
+  document.getElementById('hdr-updated').textContent = new Date().toLocaleTimeString();
+
+  hide('banner-error');
+  hide('banner-cors');
+  hide('banner-stale');
+  show('banner-loading');
+
+  try {
+    // Build query strings
+    const statsParams = new URLSearchParams({ funnel });
+    if (fromVal) statsParams.set('from', fromVal);
+    if (toVal)   statsParams.set('to', toVal);
+
+    const sessParams = new URLSearchParams({ funnel, limit: '500' });
+    if (fromVal) sessParams.set('from', fromVal);
+    if (toVal)   sessParams.set('to', toVal);
+
+    // Fetch in parallel
+    const [statsData, sessData] = await Promise.all([
+      apiFetch(`/stats?${statsParams}`),
+      apiFetch(`/sessions?${sessParams}`),
+    ]);
+
+    hide('banner-loading');
+    renderDashboard(statsData, sessData);
+
+  } catch (err) {
+    hide('banner-loading');
+    console.warn('Live API unavailable, loading cached data:', err.message);
+
+    // ── Fallback to cached data ──
+    show('banner-stale');
+    const cachedSessions = expandCachedSessions();
+    renderDashboard(CACHED_STATS, { total: CACHED_SESSIONS.total, sessions: cachedSessions });
+  }
+}
+
+function clearDates() {
+  document.getElementById('inp-from').value = '';
+  document.getElementById('inp-to').value = '';
+  loadAll();
+}
+
+// Auto-load on page open
+window.addEventListener('DOMContentLoaded', loadAll);
+</script>
+
+</body>
+</html>

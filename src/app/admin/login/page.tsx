@@ -31,12 +31,12 @@ export default function AdminLoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-                <h1 className="text-2xl font-bold mb-6 text-center">Admin Login</h1>
+        <div className="flex min-h-screen items-center justify-center bg-[#f5f3f9]">
+            <div className="w-full max-w-md rounded-xl border border-[#c8c2d8] bg-white p-8 shadow-sm">
+                <h1 className="mb-6 text-center text-xl font-bold tracking-tight text-[#1a1625]">Admin Login</h1>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="password" className="mb-2 block text-sm font-medium text-[#1a1625]">
                             Password
                         </label>
                         <input
@@ -44,22 +44,22 @@ export default function AdminLoginPage() {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full rounded-lg border border-[#c8c2d8] px-3 py-2 text-[#1a1625] focus:outline-none focus:ring-2 focus:ring-[#1753a0]"
                             required
                             autoFocus
                         />
                     </div>
                     {error && (
-                        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
+                        <div className="mb-4 rounded-lg bg-[#fce8ef] p-3 text-sm text-[#b8003c]">
                             {error}
                         </div>
                     )}
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full rounded-lg bg-[#1753a0] px-4 py-2 font-medium text-white hover:bg-[#0d3a6e] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {loading ? 'Logging in...' : 'Login'}
+                        {loading ? 'Logging in…' : 'Login'}
                     </button>
                 </form>
             </div>
