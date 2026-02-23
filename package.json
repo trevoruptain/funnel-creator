@@ -11,7 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "install-skill": "mkdir -p ~/.claude/skills && cp -r skills/ad-pipeline ~/.claude/skills/",
+    "install-skill": "mkdir -p ~/.claude/skills && cp -r skills/ad-pipeline ~/.claude/skills/ && cp -r skills/funnel-editor ~/.claude/skills/",
     "test:ad-gen": "npx tsx mcp-server/test-ad-generation.ts",
     "verify-tracking": "npx tsx scripts/verify-tracking.ts"
   },

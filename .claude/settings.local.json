@@ -5,7 +5,11 @@
       "mcp__funnel-creator__add_ad_concepts",
       "mcp__funnel-creator__generate_ad_image",
       "mcp__funnel-creator__get_project",
-      "mcp__funnel-creator__generate_ad_design"
+      "mcp__funnel-creator__generate_ad_design",
+      "mcp__funnel-creator__list_funnels",
+      "mcp__funnel-creator__get_funnel_steps",
+      "mcp__funnel-creator__insert_funnel_step",
+      "Skill(funnel-editor)"
     ]
   }
 }

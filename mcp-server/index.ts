@@ -10,7 +10,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, sql as sqlFragment } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { z } from 'zod';
 import * as schema from '../src/db/schema.js';
@@ -486,6 +486,142 @@ server.tool(
             content: [{
                 type: 'text' as const,
                 text: JSON.stringify({ total: summary.length, projects: summary }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: list_funnels ────────────────────────────────────────────────
+server.tool(
+    'list_funnels',
+    'List all funnels with slug and name. Used to present funnel options when inserting steps.',
+    {},
+    async () => {
+        const list = await db
+            .select({ slug: schema.funnels.slug, name: schema.funnels.name })
+            .from(schema.funnels)
+            .orderBy(schema.funnels.name);
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ funnels: list }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: get_funnel_steps ────────────────────────────────────────────
+server.tool(
+    'get_funnel_steps',
+    'Get all steps for a funnel (sort_order, step_id, type). Used when user inserts in middle to pick "after which step".',
+    {
+        funnel_slug: z.string().describe('Funnel slug (e.g. aurora-399-v1)'),
+    },
+    async ({ funnel_slug }) => {
+        const funnel = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+        });
+
+        if (!funnel) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        const steps = await db.query.funnelSteps.findMany({
+            where: eq(schema.funnelSteps.funnelId, funnel.id),
+            orderBy: [asc(schema.funnelSteps.sortOrder)],
+            columns: { sortOrder: true, stepId: true, type: true },
+        });
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ steps }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: insert_funnel_step ─────────────────────────────────────────
+server.tool(
+    'insert_funnel_step',
+    'Insert a funnel step at beginning, after a specific step, or end. Reorders existing steps as needed.',
+    {
+        funnel_slug: z.string().describe('Funnel slug'),
+        position: z.enum(['beginning', 'after_step', 'end']).describe('Where to insert'),
+        after_step_id: z.string().optional().describe('Required when position is after_step'),
+        step_id: z.string().describe('Unique step slug (e.g. budget-question)'),
+        type: z.enum([
+            'welcome', 'multiple-choice', 'checkboxes', 'email', 'text-input',
+            'number-picker', 'info-card', 'checkout', 'result',
+        ]).describe('Step type'),
+        config: z.record(z.string(), z.unknown()).describe('Type-specific config (question, options, etc.)'),
+    },
+    async ({ funnel_slug, position, after_step_id, step_id, type, config }) => {
+        const funnel = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+        });
+
+        if (!funnel) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        if (position === 'after_step' && !after_step_id) {
+            return { content: [{ type: 'text' as const, text: 'Error: after_step_id required when position is after_step' }] };
+        }
+
+        let newSortOrder: number;
+
+        if (position === 'beginning') {
+            await db.update(schema.funnelSteps)
+                .set({ sortOrder: sqlFragment`${schema.funnelSteps.sortOrder} + 1` })
+                .where(eq(schema.funnelSteps.funnelId, funnel.id));
+            newSortOrder = 0;
+        } else if (position === 'after_step' && after_step_id) {
+            const afterStep = await db.query.funnelSteps.findFirst({
+                where: and(
+                    eq(schema.funnelSteps.funnelId, funnel.id),
+                    eq(schema.funnelSteps.stepId, after_step_id)
+                ),
+            });
+
+            if (!afterStep) {
+                return { content: [{ type: 'text' as const, text: `Error: Step not found: ${after_step_id}` }] };
+            }
+
+            await db.update(schema.funnelSteps)
+                .set({ sortOrder: sqlFragment`${schema.funnelSteps.sortOrder} + 1` })
+                .where(and(
+                    eq(schema.funnelSteps.funnelId, funnel.id),
+                    gt(schema.funnelSteps.sortOrder, afterStep.sortOrder)
+                ));
+            newSortOrder = afterStep.sortOrder + 1;
+        } else {
+            const steps = await db.query.funnelSteps.findMany({
+                where: eq(schema.funnelSteps.funnelId, funnel.id),
+                columns: { sortOrder: true },
+            });
+            const maxOrder = steps.length > 0 ? Math.max(...steps.map((s) => s.sortOrder)) : -1;
+            newSortOrder = maxOrder + 1;
+        }
+
+        const [inserted] = await db.insert(schema.funnelSteps).values({
+            funnelId: funnel.id,
+            sortOrder: newSortOrder,
+            stepId: step_id,
+            type,
+            config,
+        }).returning({ id: schema.funnelSteps.id, stepId: schema.funnelSteps.stepId, sortOrder: schema.funnelSteps.sortOrder });
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    inserted: true,
+                    step_id: inserted.stepId,
+                    sort_order: inserted.sortOrder,
+                    funnel_slug: funnel_slug,
+                }, null, 2),
             }],
         };
     }
