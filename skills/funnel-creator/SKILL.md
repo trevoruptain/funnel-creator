@@ -1,5 +1,5 @@
 ---
-name: ad-pipeline
+name: funnel-creator
 version: 0.2.0
 description: Generate Meta ad concepts from product ideas — with Gemini image generation and DB persistence via MCP tools
 allowed-tools:
@@ -29,7 +29,7 @@ The `funnel-creator` MCP server must be configured. It provides the following to
 
 ## How to Use
 
-Run `/ad-pipeline` to start a new ad project.
+Run `/funnel-creator` to start a new ad project.
 
 ---
 
