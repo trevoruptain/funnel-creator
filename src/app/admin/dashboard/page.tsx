@@ -684,7 +684,7 @@ export default function DashboardPage() {
                         <td>—</td>
                       </tr>
                       <tr>
-                        <td>Email captured</td>
+                        <td>Completed funnel</td>
                         <td>{fmt(ov.completed_sessions)}</td>
                         <td>
                           {fmtPct(
@@ -716,7 +716,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <div className="text-[0.72rem] uppercase tracking-wider text-[#6b6480]">
-                      Email Capture Rate
+                      Completion Rate
                     </div>
                   </div>
                 </div>
