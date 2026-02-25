@@ -9,7 +9,8 @@
       "mcp__funnel-creator__list_funnels",
       "mcp__funnel-creator__get_funnel_steps",
       "mcp__funnel-creator__insert_funnel_step",
-      "Skill(funnel-editor)"
+      "Skill(funnel-editor)",
+      "Skill(funnel-creator)"
     ]
   }
 }
