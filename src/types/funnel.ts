@@ -9,6 +9,7 @@ export type StepType =
   | 'welcome'
   | 'multiple-choice'
   | 'checkboxes'
+  | 'ranking'
   | 'email'
   | 'text-input'
   | 'number-picker'
@@ -76,6 +77,18 @@ export interface CheckboxesStep extends BaseStep {
   minSelections?: number;
   maxSelections?: number;
   required?: boolean;
+}
+
+// Drag-to-rank (reorder options by priority)
+export interface RankingStep extends BaseStep {
+  type: 'ranking';
+  question: string;
+  description?: string;
+  options: {
+    id: string;
+    label: string;
+    icon?: string;
+  }[];
 }
 
 // Email capture
@@ -153,6 +166,7 @@ export type FunnelStep =
   | WelcomeStep
   | MultipleChoiceStep
   | CheckboxesStep
+  | RankingStep
   | EmailStep
   | TextInputStep
   | NumberPickerStep

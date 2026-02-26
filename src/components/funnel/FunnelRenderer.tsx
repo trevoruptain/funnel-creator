@@ -10,6 +10,7 @@ import { HeightPickerStepComponent } from './steps/HeightPickerStep';
 import { InfoCardStepComponent } from './steps/InfoCardStep';
 import { MultipleChoiceStepComponent } from './steps/MultipleChoiceStep';
 import { NumberPickerStepComponent } from './steps/NumberPickerStep';
+import { RankingStepComponent } from './steps/RankingStep';
 import { ResultStepComponent } from './steps/ResultStep';
 import { TextInputStepComponent } from './steps/TextInputStep';
 import { WelcomeStepComponent } from './steps/WelcomeStep';
@@ -87,6 +88,8 @@ export function FunnelRenderer() {
         return <MultipleChoiceStepComponent step={currentStep} />;
       case 'checkboxes':
         return <CheckboxesStepComponent step={currentStep} />;
+      case 'ranking':
+        return <RankingStepComponent step={currentStep} />;
       case 'email':
         return <EmailStepComponent step={currentStep} />;
       case 'text-input':

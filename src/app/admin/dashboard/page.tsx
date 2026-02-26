@@ -16,6 +16,7 @@ const STEP_LABELS: Record<string, string> = {
   "feature-interest": "Feature Interest",
   "monitoring-gaps": "Monitoring Gaps",
   importance: "Importance Rating",
+  "feature-ranking": "Feature Ranking",
   email: "Email Step",
   checkout: "Checkout",
   result: "Result Page",

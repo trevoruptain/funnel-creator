@@ -15,6 +15,7 @@ export const stepTypeEnum = pgEnum("step_type", [
   "welcome",
   "multiple-choice",
   "checkboxes",
+  "ranking",
   "email",
   "text-input",
   "number-picker",
