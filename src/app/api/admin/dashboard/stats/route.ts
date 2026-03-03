@@ -5,6 +5,12 @@ import { resolveFunnel } from '@/lib/resolve-funnel';
 import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface StepCondition {
+  stepId: string;
+  operator: 'equals' | 'not_equals' | 'in' | 'not_in';
+  value: string | string[];
+}
+
 export async function GET(request: NextRequest) {
   const authError = await requireAdmin();
   if (authError) return authError;
@@ -15,6 +21,8 @@ export async function GET(request: NextRequest) {
     const versionParam = searchParams.get('version');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const filterStep = searchParams.get('filter_step');
+    const filterValue = searchParams.get('filter_value');
 
     if (!funnelParam) {
       return NextResponse.json(
@@ -44,6 +52,26 @@ export async function GET(request: NextRequest) {
       gte(sessions.startedAt, new Date(from)),
       lte(sessions.startedAt, new Date(to)),
     ];
+
+    // Narrow to sessions where the user gave a specific response to the branching step
+    if (filterStep && filterValue) {
+      sessionConditions.push(
+        inArray(
+          sessions.id,
+          db
+            .select({ id: responses.sessionId })
+            .from(responses)
+            .where(
+              and(
+                eq(responses.stepId, filterStep),
+                // JSONB containment: works for both scalar strings and arrays
+                sql`${responses.value} @> ${JSON.stringify(filterValue)}::jsonb`
+              )
+            )
+        )
+      );
+    }
+
     const sessionWhere = and(...sessionConditions);
 
     const [overview] = await db
@@ -98,14 +126,26 @@ export async function GET(request: NextRequest) {
     const funnelStepsList = await db.query.funnelSteps.findMany({
       where: eq(funnelSteps.funnelId, stepFunnel.id),
       orderBy: (fs, { asc }) => [asc(fs.sortOrder)],
-      columns: { stepId: true, type: true, sortOrder: true },
+      columns: { stepId: true, type: true, sortOrder: true, showIf: true },
     });
 
     const viewCountMap = Object.fromEntries(
       viewCounts.map((v) => [v.step_id, { views: Number(v.views), type: v.step_type }])
     );
 
-    const stepDropOff = funnelStepsList.map((step) => ({
+    // When a path filter is active, exclude steps that belong to a different branch
+    const visibleSteps = filterStep && filterValue
+      ? funnelStepsList.filter((step) => {
+          if (!step.showIf) return true; // unconditional steps are always visible
+          const condition = step.showIf as StepCondition;
+          // Keep steps whose condition references the selected branching step with the selected value
+          if (condition.stepId !== filterStep) return false;
+          const condValues = Array.isArray(condition.value) ? condition.value : [condition.value];
+          return condValues.includes(filterValue);
+        })
+      : funnelStepsList;
+
+    const stepDropOff = visibleSteps.map((step) => ({
       step_id: step.stepId,
       step_type: step.type,
       sort_order: step.sortOrder,

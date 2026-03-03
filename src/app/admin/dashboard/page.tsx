@@ -70,6 +70,17 @@ interface FunnelFamily {
   versions: FunnelVersion[];
 }
 
+interface PathOption {
+  value: string;
+  label: string;
+}
+
+interface PathSegment {
+  stepId: string;
+  stepLabel: string;
+  options: PathOption[];
+}
+
 interface StatsData {
   funnel: {
     base_slug: string;
@@ -143,6 +154,8 @@ export default function DashboardPage() {
   const [metaData, setMetaData] = useState<MetaData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paths, setPaths] = useState<PathSegment[]>([]);
+  const [selectedPath, setSelectedPath] = useState<{ stepId: string; value: string } | null>(null);
 
   const selectedFamily = funnelFamilies.find((f) => f.baseSlug === selectedBaseSlug) ?? null;
 
@@ -177,6 +190,10 @@ export default function DashboardPage() {
       });
       if (selectedVersion !== null) {
         statsParams.set('version', String(selectedVersion));
+      }
+      if (selectedPath) {
+        statsParams.set('filter_step', selectedPath.stepId);
+        statsParams.set('filter_value', selectedPath.value);
       }
       const sessParams = new URLSearchParams({
         funnel: selectedBaseSlug,
@@ -220,7 +237,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBaseSlug, selectedVersion, from, to]);
+  }, [selectedBaseSlug, selectedVersion, from, to, selectedPath]);
 
   useEffect(() => {
     loadFunnels();
@@ -230,6 +247,23 @@ export default function DashboardPage() {
     if (selectedBaseSlug && from && to) loadAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBaseSlug]);
+
+  // Load path segments whenever funnel/version changes
+  useEffect(() => {
+    if (!selectedBaseSlug) return;
+    setSelectedPath(null);
+    const params = new URLSearchParams({ funnel: selectedBaseSlug });
+    if (selectedVersion !== null) params.set('version', String(selectedVersion));
+    fetch(`/api/admin/dashboard/paths?${params}`)
+      .then((r) => (r.ok ? r.json() : { paths: [] }))
+      .then((d) => setPaths(d.paths ?? []));
+  }, [selectedBaseSlug, selectedVersion]);
+
+  // Re-fetch stats whenever the path filter changes (if data is already loaded)
+  useEffect(() => {
+    if (stats && selectedBaseSlug && from && to) loadAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath]);
 
   const hasDateRange = from && to;
 
@@ -520,7 +554,47 @@ export default function DashboardPage() {
 
             {/* Funnel Waterfall */}
             <section className="mb-8">
-              <h2 className="dashboard-section-title">Funnel Step Drop-Off</h2>
+              <h2 className="dashboard-section-title">
+                Funnel Step Drop-Off
+                {paths.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-[#6b6480]">
+                      Path
+                    </label>
+                    <select
+                      value={selectedPath ? `${selectedPath.stepId}::${selectedPath.value}` : ""}
+                      onChange={(e) => {
+                        if (!e.target.value) {
+                          setSelectedPath(null);
+                        } else {
+                          const [stepId, value] = e.target.value.split("::");
+                          setSelectedPath({ stepId, value });
+                        }
+                      }}
+                      className="rounded border border-[#7c0667] bg-white px-2 py-1.5 text-xs font-semibold text-[#1a1625] ring-1 ring-[#7c0667]"
+                    >
+                      <option value="">All users</option>
+                      {paths.map((seg) => (
+                        <optgroup key={seg.stepId} label={seg.stepLabel}>
+                          {seg.options.map((opt) => (
+                            <option key={opt.value} value={`${seg.stepId}::${opt.value}`}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {selectedPath && (
+                      <button
+                        onClick={() => setSelectedPath(null)}
+                        className="text-xs text-[#7c0667] underline hover:opacity-75"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+              </h2>
               <div className="rounded-xl border border-[#c8c2d8] bg-white p-4">
                 <div className="dashboard-wf-row mb-1.5 text-[0.68rem] font-semibold uppercase tracking-wide text-[#6b6480]">
                   <div>Step</div>
