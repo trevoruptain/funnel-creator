@@ -1,6 +1,6 @@
 ---
 name: funnel-creator
-version: 0.2.0
+version: 0.3.0
 description: Generate Meta ad concepts from product ideas — with Gemini image generation and DB persistence via MCP tools
 allowed-tools:
   - AskUserQuestion
@@ -26,6 +26,13 @@ The `funnel-creator` MCP server must be configured. It provides the following to
 - `add_ad_concepts` — batch insert ad concepts
 - `generate_ad_image` — generate image with Gemini and upload to Vercel Blob
 - `get_project` / `list_projects` — retrieve project data
+- `publish_campaign` — create a Meta campaign (Campaign + Ad Set + Ads) from an approved project
+- `activate_campaign` — flip a PAUSED campaign to ACTIVE
+
+The following environment variables must be set for Meta publishing:
+- `META_ACCESS_TOKEN` — Marketing API access token
+- `META_AD_ACCOUNT_ID` — Ad account ID (numeric, without `act_` prefix)
+- `META_PAGE_ID` — Facebook Page ID connected to the ad account
 
 ## How to Use
 
@@ -124,21 +131,16 @@ AskUserQuestion({
 })
 ```
 
-**Q8: Monthly ad budget?**
+**Q8: Daily ad budget?**
 ```
 AskUserQuestion({
   questions: [{
-    header: "What's your monthly ad budget?",
-    options: [
-      { label: "Under $500 (testing)", value: "under-500" },
-      { label: "$500–$2,000", value: "500-2000" },
-      { label: "$2,000–$10,000", value: "2000-10000" },
-      { label: "$10,000+", value: "10000+" },
-      { label: "Not sure", value: "not-sure" }
-    ]
+    header: "What's your daily ad budget in USD? (e.g. enter 50 for $50/day)",
+    options: [] // Free text — they enter a dollar amount like "50" or "100"
   }]
 })
 ```
+*Store as a numeric string (e.g. "50"). This is used when publishing the campaign to Meta.*
 
 **Q9: Where to run ads?**
 ```
@@ -485,13 +487,44 @@ Based on your budget (Q8: **[insert their answer]**) and objective (Q3: **[inser
 
 **Would you like me to create a tracking spreadsheet to monitor performance across all concepts?**
 
-### Step 8: Next Steps
+### Step 8: Publish to Meta (Optional)
+
+After completing the launch checklist in Step 7, ask the Originator:
+
+> "Would you like me to publish this campaign directly to Meta Ads now? I'll create the campaign, ad set, and one ad per approved creative — all set to PAUSED so you can review before going live."
+
+**If yes:**
+
+**8a.** Ask for confirmation of the daily budget:
+> "Your intake says $[intake.budget]/day. Is that correct, or would you like a different amount for this campaign?"
+
+**8b.** Call `publish_campaign` with:
+- `project_id`: The project UUID from Step 5a
+- `daily_budget_usd`: The confirmed daily budget in dollars (e.g. `50` for $50/day)
+- `start_date`: Optional — today's date if they want to start now, or a future YYYY-MM-DD
+
+**8c.** Report the results clearly:
+- Campaign ID and name
+- Ad set ID
+- One row per ad concept showing the ad ID and whether it was created successfully
+- The Ads Manager URL (direct link to the campaign)
+- Remind them: **all ads are PAUSED — they must review in Ads Manager and activate**
+
+**8d.** Ask if they want to go live now:
+> "All ads are created but PAUSED. Would you like me to activate the campaign now?"
+
+**If yes to activation:** Call `activate_campaign` with `project_id` and confirm activation.
+
+**If no to publishing:** Skip to Step 9.
+
+### Step 9: Next Steps
 
 Inform the Originator:
 - Their project has been saved to the database
 - Images are stored on Vercel Blob and accessible via the blob URLs
 - They can retrieve their project anytime via the `get_project` or `list_projects` MCP tools
 - The data team can access project data via the `/api/data/projects` endpoint
+- They can publish to Meta at any time by asking Claude to run `publish_campaign` with their `project_id`
 
 ---
 
@@ -524,4 +557,5 @@ At the end of this skill execution, the Originator should have:
 2. 3-5 distinct ad concepts ready for creative execution
 3. AI-generated images for each concept stored on Vercel Blob
 4. Everything persisted in the database for retrieval
-5. Next steps clearly communicated
+5. Optionally: A live Meta campaign created (PAUSED or ACTIVE) with one ad per concept
+6. Next steps clearly communicated

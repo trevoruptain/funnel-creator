@@ -1116,6 +1116,378 @@ server.tool(
     }
 );
 
+// ── Tool: publish_campaign ────────────────────────────────────────────
+server.tool(
+    'publish_campaign',
+    'Publish a Meta ad campaign from an approved project. Creates Campaign → Ad Set → one Ad per concept that has a generated image. All objects are created PAUSED so you can review before going live. Call activate_campaign when ready to start spending.',
+    {
+        project_id: z.string().uuid().describe('Project UUID to publish'),
+        daily_budget_usd: z.number().positive().optional().describe('Daily budget in USD (overrides intake Q8). e.g. 50 for $50/day'),
+        start_date: z.string().optional().describe('Campaign start date in YYYY-MM-DD format (defaults to today)'),
+    },
+    async ({ project_id, daily_budget_usd, start_date }) => {
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        const adAccountId = process.env.META_AD_ACCOUNT_ID;
+        const pageId = process.env.META_PAGE_ID;
+        const metaApiVersion = 'v22.0';
+
+        if (!accessToken || !adAccountId || !pageId) {
+            return { content: [{ type: 'text' as const, text: 'Error: META_ACCESS_TOKEN, META_AD_ACCOUNT_ID, and META_PAGE_ID env vars are required' }] };
+        }
+
+        // 1. Fetch project + all concepts + their images
+        const project = await db.query.projects.findFirst({
+            where: eq(schema.projects.id, project_id),
+            with: {
+                adConcepts: {
+                    orderBy: [asc(schema.adConcepts.sortOrder)],
+                    with: { images: true },
+                },
+            },
+        });
+
+        if (!project) {
+            return { content: [{ type: 'text' as const, text: `Error: Project not found: ${project_id}` }] };
+        }
+
+        const intake = project.intake as Record<string, string> | null;
+        const inferred = project.inferred as Record<string, unknown> | null;
+
+        // 2. Determine daily budget (parameter overrides intake Q8)
+        const budgetUsd = daily_budget_usd ?? parseFloat(intake?.budget ?? '0');
+        if (!budgetUsd || isNaN(budgetUsd) || budgetUsd <= 0) {
+            return { content: [{ type: 'text' as const, text: 'Error: Provide a valid daily_budget_usd (e.g. 50 for $50/day) or ensure intake Q8 contains a dollar amount' }] };
+        }
+        const dailyBudgetCents = Math.round(budgetUsd * 100);
+
+        // 3. Map intake.objective → Meta campaign objective
+        const objectiveMap: Record<string, string> = {
+            signup: 'OUTCOME_LEADS',
+            download: 'OUTCOME_LEADS',
+            visit: 'OUTCOME_TRAFFIC',
+            buy: 'OUTCOME_SALES',
+        };
+        const objective = objectiveMap[intake?.objective ?? ''] ?? 'OUTCOME_TRAFFIC';
+
+        // 4. Map intake.placements → publisher_platforms + positions
+        const placement = intake?.placements ?? 'both';
+        const publisherPlatforms: string[] = [];
+        const facebookPositions: string[] = [];
+        const instagramPositions: string[] = [];
+        if (placement === 'facebook' || placement === 'both') {
+            publisherPlatforms.push('facebook');
+            facebookPositions.push('feed', 'story');
+        }
+        if (placement === 'instagram' || placement === 'both') {
+            publisherPlatforms.push('instagram');
+            instagramPositions.push('stream', 'story', 'reels');
+        }
+        if (publisherPlatforms.length === 0) {
+            publisherPlatforms.push('facebook', 'instagram');
+            facebookPositions.push('feed', 'story');
+            instagramPositions.push('stream', 'story', 'reels');
+        }
+
+        // 5. Map intake.geography → geo_locations
+        const geo = intake?.geography ?? 'us-only';
+        const geoLocations = geo === 'us-only'
+            ? { countries: ['US'] }
+            : { countries: ['US', 'GB', 'CA', 'AU'] };
+
+        // 6. Translate inferred interest names → Meta interest IDs via Targeting Search API
+        const interestIds: Array<{ id: string; name: string }> = [];
+        const targetingStrategy = inferred?.targeting_strategy as Record<string, unknown> | null;
+        const rawInterests = (
+            targetingStrategy?.interests ??
+            targetingStrategy?.interest_categories ??
+            targetingStrategy?.meta_interest_categories ??
+            targetingStrategy?.meta_interests ??
+            []
+        );
+        const interestNames: string[] = Array.isArray(rawInterests)
+            ? rawInterests.filter((i): i is string => typeof i === 'string').slice(0, 5)
+            : [];
+
+        for (const interestName of interestNames) {
+            try {
+                const searchUrl = new URL(`https://graph.facebook.com/${metaApiVersion}/search`);
+                searchUrl.searchParams.set('type', 'adTargetingCategory');
+                searchUrl.searchParams.set('class', 'interests');
+                searchUrl.searchParams.set('q', interestName);
+                searchUrl.searchParams.set('access_token', accessToken);
+                const searchRes = await fetch(searchUrl.toString());
+                if (searchRes.ok) {
+                    const searchData = await searchRes.json() as { data?: Array<{ id: string; name: string }> };
+                    if (searchData.data?.[0]) {
+                        interestIds.push({ id: searchData.data[0].id, name: searchData.data[0].name });
+                    }
+                }
+            } catch {
+                // Skip interests that fail to look up — non-blocking
+            }
+        }
+
+        // Helper: POST to Meta Graph API
+        const metaPost = async (endpoint: string, body: Record<string, unknown>) => {
+            const url = `https://graph.facebook.com/${metaApiVersion}/${endpoint}`;
+            const params = new URLSearchParams();
+            for (const [key, val] of Object.entries(body)) {
+                params.set(key, typeof val === 'string' ? val : JSON.stringify(val));
+            }
+            params.set('access_token', accessToken);
+            const res = await fetch(url, { method: 'POST', body: params });
+            const data = await res.json() as { id?: string; error?: { message: string; code?: number } };
+            if (data.error) throw new Error(`Meta API [${endpoint}]: ${data.error.message}`);
+            if (!data.id) throw new Error(`Meta API [${endpoint}]: no ID returned`);
+            return data as { id: string };
+        };
+
+        // 7. Create Campaign (PAUSED)
+        const startDateStr = start_date ?? new Date().toISOString().slice(0, 10);
+        const campaignName = `${project.name}_${objective.replace('OUTCOME_', '')}_${startDateStr}`;
+        const campaign = await metaPost(`act_${adAccountId}/campaigns`, {
+            name: campaignName,
+            objective,
+            status: 'PAUSED',
+            special_ad_categories: [],
+        });
+        const campaignId = campaign.id;
+
+        // 8. Create Ad Set (PAUSED)
+        const targeting: Record<string, unknown> = {
+            geo_locations: geoLocations,
+            publisher_platforms: publisherPlatforms,
+            ...(facebookPositions.length > 0 && { facebook_positions: facebookPositions }),
+            ...(instagramPositions.length > 0 && { instagram_positions: instagramPositions }),
+            ...(interestIds.length > 0 && { interests: interestIds }),
+        };
+
+        const adSet = await metaPost(`act_${adAccountId}/adsets`, {
+            name: `${project.name}_AdSet_${startDateStr}`,
+            campaign_id: campaignId,
+            daily_budget: dailyBudgetCents,
+            optimization_goal: 'LINK_CLICKS',
+            billing_event: 'IMPRESSIONS',
+            targeting,
+            start_time: startDateStr,
+            status: 'PAUSED',
+        });
+        const adSetId = adSet.id;
+
+        // Store campaign + ad set IDs on project
+        await db.update(schema.projects)
+            .set({ metaCampaignId: campaignId, metaAdSetId: adSetId })
+            .where(eq(schema.projects.id, project_id));
+
+        // 9. CTA text → Meta CTA type mapping
+        const ctaTypeMap: Record<string, string> = {
+            'sign up': 'SIGN_UP',
+            'join waitlist': 'SIGN_UP',
+            'join the waitlist': 'SIGN_UP',
+            'get started': 'SIGN_UP',
+            'learn more': 'LEARN_MORE',
+            'shop now': 'SHOP_NOW',
+            'buy now': 'BUY_NOW',
+            'order now': 'ORDER_NOW',
+            'download': 'DOWNLOAD',
+            'install now': 'INSTALL_MOBILE_APP',
+            'subscribe': 'SUBSCRIBE',
+            'contact us': 'CONTACT_US',
+            'apply now': 'APPLY_NOW',
+            'book now': 'BOOK_TRAVEL',
+        };
+
+        const destinationUrl = intake?.link && !/^none/i.test(intake.link.trim())
+            ? intake.link.trim()
+            : 'https://example.com';
+
+        // 10. For each concept that has a generated image: upload → creative → ad
+        const conceptsWithImages = project.adConcepts.filter(
+            c => c.images.some(img => img.status === 'generated' && img.blobUrl)
+        );
+
+        if (conceptsWithImages.length === 0) {
+            // Campaign + ad set were created — clean that info up
+            return { content: [{ type: 'text' as const, text: `Error: No concepts with generated images found. Run generate_ad_image first. Campaign (${campaignId}) and ad set (${adSetId}) were created but no ads were added.` }] };
+        }
+
+        const adResults: Array<{
+            concept_id: string;
+            angle_name: string;
+            ad_id: string;
+            creative_id: string;
+            error?: string;
+        }> = [];
+
+        for (const concept of conceptsWithImages) {
+            const image = concept.images
+                .filter(img => img.status === 'generated' && img.blobUrl)
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+            try {
+                // a. Fetch image bytes from Vercel Blob
+                const imgRes = await fetch(image.blobUrl!);
+                if (!imgRes.ok) throw new Error(`Failed to fetch image from Blob: ${image.blobUrl}`);
+                const imgBuffer = await imgRes.arrayBuffer();
+                const imgBase64 = Buffer.from(imgBuffer).toString('base64');
+
+                // b. Upload image to Meta adimages
+                const uploadUrl = `https://graph.facebook.com/${metaApiVersion}/act_${adAccountId}/adimages`;
+                const uploadParams = new URLSearchParams();
+                uploadParams.set('bytes', imgBase64);
+                uploadParams.set('access_token', accessToken);
+                const uploadRes = await fetch(uploadUrl, { method: 'POST', body: uploadParams });
+                const uploadData = await uploadRes.json() as {
+                    images?: Record<string, { hash: string; url: string }>;
+                    error?: { message: string };
+                };
+                if (uploadData.error) throw new Error(`Image upload: ${uploadData.error.message}`);
+                const imageHash = Object.values(uploadData.images ?? {})[0]?.hash;
+                if (!imageHash) throw new Error('No image hash returned from Meta adimages upload');
+
+                // c. Create Ad Creative
+                const ctaKey = concept.cta.toLowerCase().trim();
+                const ctaType = ctaTypeMap[ctaKey] ?? 'LEARN_MORE';
+
+                const creative = await metaPost(`act_${adAccountId}/adcreatives`, {
+                    name: `${concept.angleName}_Creative`,
+                    object_story_spec: {
+                        page_id: pageId,
+                        link_data: {
+                            message: concept.bodyCopy,
+                            link: destinationUrl,
+                            name: concept.headline,
+                            image_hash: imageHash,
+                            call_to_action: {
+                                type: ctaType,
+                                value: { link: destinationUrl },
+                            },
+                        },
+                    },
+                });
+                const creativeId = creative.id;
+
+                // d. Create Ad (PAUSED)
+                const ad = await metaPost(`act_${adAccountId}/ads`, {
+                    name: `${concept.angleName}_Ad`,
+                    adset_id: adSetId,
+                    creative: { creative_id: creativeId },
+                    status: 'PAUSED',
+                });
+                const adId = ad.id;
+
+                // e. Store Meta IDs on the concept row
+                await db.update(schema.adConcepts)
+                    .set({ metaAdId: adId, metaCreativeId: creativeId })
+                    .where(eq(schema.adConcepts.id, concept.id));
+
+                adResults.push({ concept_id: concept.id, angle_name: concept.angleName, ad_id: adId, creative_id: creativeId });
+            } catch (err) {
+                adResults.push({
+                    concept_id: concept.id,
+                    angle_name: concept.angleName,
+                    ad_id: '',
+                    creative_id: '',
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }
+        }
+
+        const successCount = adResults.filter(a => !a.error).length;
+        const adsManagerUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${adAccountId}&selected_campaign_ids=${campaignId}`;
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: true,
+                    status: 'PAUSED',
+                    campaign_id: campaignId,
+                    campaign_name: campaignName,
+                    ad_set_id: adSetId,
+                    daily_budget_usd: budgetUsd,
+                    ads_created: successCount,
+                    ads_failed: adResults.length - successCount,
+                    ads: adResults,
+                    interests_mapped: interestIds,
+                    ads_manager_url: adsManagerUrl,
+                    next_step: 'All ads are PAUSED. Review in Ads Manager, then call activate_campaign to go live.',
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: activate_campaign ────────────────────────────────────────────
+server.tool(
+    'activate_campaign',
+    'Activate a previously published (PAUSED) Meta campaign. Sets the campaign, ad set, and all ads to ACTIVE so they start delivering.',
+    {
+        project_id: z.string().uuid().describe('Project UUID whose campaign to activate'),
+    },
+    async ({ project_id }) => {
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        const adAccountId = process.env.META_AD_ACCOUNT_ID;
+        const metaApiVersion = 'v22.0';
+
+        if (!accessToken || !adAccountId) {
+            return { content: [{ type: 'text' as const, text: 'Error: META_ACCESS_TOKEN and META_AD_ACCOUNT_ID env vars are required' }] };
+        }
+
+        const project = await db.query.projects.findFirst({
+            where: eq(schema.projects.id, project_id),
+            with: {
+                adConcepts: {
+                    columns: { id: true, angleName: true, metaAdId: true },
+                },
+            },
+        });
+
+        if (!project) {
+            return { content: [{ type: 'text' as const, text: `Error: Project not found: ${project_id}` }] };
+        }
+
+        if (!project.metaCampaignId || !project.metaAdSetId) {
+            return { content: [{ type: 'text' as const, text: 'Error: No Meta campaign found for this project. Run publish_campaign first.' }] };
+        }
+
+        // Helper: set status on a Meta object
+        const setStatus = async (id: string, status: string): Promise<void> => {
+            const url = `https://graph.facebook.com/${metaApiVersion}/${id}`;
+            const params = new URLSearchParams({ status, access_token: accessToken });
+            const res = await fetch(url, { method: 'POST', body: params });
+            const data = await res.json() as { success?: boolean; error?: { message: string } };
+            if (data.error) throw new Error(`Failed to activate ${id}: ${data.error.message}`);
+        };
+
+        await setStatus(project.metaCampaignId, 'ACTIVE');
+        await setStatus(project.metaAdSetId, 'ACTIVE');
+
+        const activatedAds: string[] = [];
+        for (const concept of project.adConcepts) {
+            if (concept.metaAdId) {
+                await setStatus(concept.metaAdId, 'ACTIVE');
+                activatedAds.push(concept.metaAdId);
+            }
+        }
+
+        const adsManagerUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${adAccountId}&selected_campaign_ids=${project.metaCampaignId}`;
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    activated: true,
+                    campaign_id: project.metaCampaignId,
+                    ad_set_id: project.metaAdSetId,
+                    ads_activated: activatedAds.length,
+                    ads_manager_url: adsManagerUrl,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
 // ── Start Server ─────────────────────────────────────────────────────
 async function main() {
     const transport = new StdioServerTransport();

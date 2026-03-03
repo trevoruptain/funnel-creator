@@ -46,6 +46,8 @@ export const projects = pgTable("projects", {
   targetAudience: text("target_audience").notNull(),
   intake: jsonb("intake"), // all 10 intake answers
   inferred: jsonb("inferred"), // audience, targeting, brand tone
+  metaCampaignId: text("meta_campaign_id"), // Meta campaign ID after publishing
+  metaAdSetId: text("meta_ad_set_id"), // Meta ad set ID after publishing
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -160,6 +162,8 @@ export const adConcepts = pgTable("ad_concepts", {
   imagePrompt: text("image_prompt"), // detailed prompt for image gen
   whyThisWorks: text("why_this_works"),
   status: adConceptStatusEnum("status").notNull().default("draft"),
+  metaAdId: text("meta_ad_id"), // Meta ad ID after publishing
+  metaCreativeId: text("meta_creative_id"), // Meta ad creative ID after publishing
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

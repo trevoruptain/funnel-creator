@@ -1,25 +1,34 @@
 ---
 name: funnel-editor
-version: 0.1.0
-description: Insert a funnel question at the beginning, middle, or end. Asks all necessary questions before calling the tool.
+version: 0.2.0
+description: Add, edit, or remove funnel questions, and manage funnel versions (create draft, publish).
 allowed-tools:
   - AskUserQuestion
 ---
 
 # Funnel Editor Skill
 
-This skill lets you insert a funnel step (any question type) at the beginning, middle, or end of a funnel. It gathers all required information via `AskUserQuestion` before calling the `insert_funnel_step` MCP tool.
+This skill lets you modify a funnel's questions and manage versions. Supported operations:
+- **Insert** a new step (beginning, middle, or end)
+- **Edit** an existing step's config (deep-merged, so you only send what changed)
+- **Remove** a step entirely (remaining steps are re-sequenced)
+- **Create a new version** (draft copy of a published funnel for safe editing)
+- **Publish a version** (promote a draft to live, replacing the current published version)
 
 ## Prerequisites
 
 The `funnel-creator` MCP server must be configured. It provides:
-- `list_funnels` — list available funnels
-- `get_funnel_steps` — get steps for a funnel (when inserting in middle)
-- `insert_funnel_step` — insert the new step
+- `list_funnels` — list available funnels and their versions
+- `get_funnel_steps` — read current steps and config for a funnel version
+- `insert_funnel_step` — insert a new step
+- `edit_funnel_step` — edit (deep-merge) config on an existing step
+- `remove_funnel_step` — delete a step and re-sequence the rest
+- `create_funnel_version` — copy a funnel into a new unpublished draft version
+- `publish_funnel_version` — promote a draft to live
 
 ## How to Use
 
-Run `/funnel-editor` to add a new question to a funnel.
+Run `/funnel-editor` to start.
 
 ---
 
@@ -27,11 +36,35 @@ Run `/funnel-editor` to add a new question to a funnel.
 
 When this skill is invoked, follow these steps. Present questions **ONE AT A TIME**, waiting for the user's response.
 
-**AskUserQuestion constraints:** Requires 2–4 options per question. No free-text. Use AskUserQuestion only for multiple-choice questions (funnel, position, step, type). For free-text (question text, step ID, placeholder, etc.), ask in a normal message and let the user type their answer.
+**AskUserQuestion constraints:** Requires 2–4 options per question. No free-text. Use AskUserQuestion only for multiple-choice questions. For free-text (question text, step ID, config values, etc.), ask in a normal message and let the user type their answer.
 
-### Step 1: Which funnel?
+---
 
-First call `list_funnels` to get available funnels. Then ask:
+### Step 0: What operation?
+
+```
+AskUserQuestion({
+  questions: [{
+    header: "What would you like to do?",
+    options: [
+      { label: "Add a new question", value: "insert" },
+      { label: "Edit an existing question", value: "edit" },
+      { label: "Remove a question", value: "remove" },
+      { label: "Create a new draft version / publish a version", value: "version" }
+    ]
+  }]
+})
+```
+
+Then branch to the relevant flow below.
+
+---
+
+## Flow A: Insert a new step
+
+### A1: Which funnel?
+
+Call `list_funnels` first. Then ask:
 
 ```
 AskUserQuestion({
@@ -39,13 +72,15 @@ AskUserQuestion({
     header: "Which funnel do you want to add a question to?",
     options: [
       { label: "Discover Aurora (aurora-399-v1)", value: "aurora-399-v1" },
-      // ... build from list_funnels response, one option per funnel
+      // ... build from list_funnels response, one option per funnel version
     ]
   }]
 })
 ```
 
-### Step 2: Where to insert?
+> **Tip:** Edits should target an unpublished draft version. If only a published version exists, suggest creating a new draft version first (Flow D).
+
+### A2: Where to insert?
 
 ```
 AskUserQuestion({
@@ -60,13 +95,13 @@ AskUserQuestion({
 })
 ```
 
-### Step 3: If middle — after which step?
+### A3: If middle — after which step?
 
-Only if the user chose "Middle" in Step 2. Call `get_funnel_steps` with the chosen funnel slug.
+Only if the user chose "Middle" in A2. Call `get_funnel_steps` with the chosen funnel slug.
 
 **IMPORTANT: AskUserQuestion requires 2–4 options.** If the funnel has more than 4 steps, use a two-step drill-down:
 
-**3a. First — which section?** Split steps into 2–4 groups (e.g. beginning, early-middle, mid, later). Present group labels:
+**3a. First — which section?** Split steps into 2–4 groups:
 
 ```
 AskUserQuestion({
@@ -82,7 +117,7 @@ AskUserQuestion({
 })
 ```
 
-**3b. Second — after which step?** From the chosen section, pick the 2–4 steps in that range. Ask:
+**3b. Second — after which step?** From the chosen section, pick 2–4 steps:
 
 ```
 AskUserQuestion({
@@ -91,18 +126,15 @@ AskUserQuestion({
     options: [
       { label: "welcome — welcome", value: "welcome" },
       { label: "gender — multiple-choice", value: "gender" },
-      { label: "pregnancy-status — multiple-choice", value: "pregnancy-status" }
-      // 2–4 options only, from the chosen section
+      // 2–4 options only from the chosen section
     ]
   }]
 })
 ```
 
-If the funnel has 4 or fewer steps total, skip 3a and ask 3b directly with all steps.
+If the funnel has 4 or fewer steps, skip 3a and ask 3b directly with all steps.
 
-### Step 4: Question type?
-
-**AskUserQuestion allows 2–4 options.** Use a two-step drill-down:
+### A4: Question type?
 
 **4a. Category?**
 
@@ -121,46 +153,182 @@ AskUserQuestion({
 
 **4b. Specific type?**
 
-- If **choice**: options `[{ label: "Multiple choice", value: "multiple-choice" }, { label: "Checkboxes", value: "checkboxes" }]`
-- If **input**: options `[{ label: "Email", value: "email" }, { label: "Text input", value: "text-input" }, { label: "Number picker", value: "number-picker" }]` (3 options)
-- If **content**: options `[{ label: "Info card", value: "info-card" }, { label: "Welcome", value: "welcome" }, { label: "Checkout", value: "checkout" }, { label: "Result", value: "result" }]` (4 options)
+- If **choice**: `[{ label: "Multiple choice", value: "multiple-choice" }, { label: "Checkboxes", value: "checkboxes" }]`
+- If **input**: `[{ label: "Email", value: "email" }, { label: "Text input", value: "text-input" }, { label: "Number picker", value: "number-picker" }]`
+- If **content**: `[{ label: "Info card", value: "info-card" }, { label: "Welcome", value: "welcome" }, { label: "Checkout", value: "checkout" }, { label: "Result", value: "result" }]`
 
-### Step 5: Type-specific config
+### A5: Type-specific config
 
-Ask only the fields needed for the chosen type. For free-text, ask in a message. Use AskUserQuestion only for yes/no or 2–4 choice questions.
+Ask only the fields needed. For free-text, ask in a message.
 
-**multiple-choice** — question (string), options (format: `id: Label` per line, e.g. `yes: Yes`). Optional: description, required (default true). Build config: `{ question, options: [{ id, label }], required?: true }`
+*(See Config shapes reference at the bottom for field details.)*
 
-**checkboxes** — Same as multiple-choice. Optional: minSelections (number, default 1), maxSelections (number), required. Parse min/max as integers.
+### A6: Step ID
 
-**email** — title (string). Optional: description, placeholder, buttonText, privacyNote, required (default true)
+Ask in a message: "Step ID (unique slug, e.g. budget-question — no spaces)." Suggest a slug from the question text.
 
-**text-input** — question (string). Optional: description, placeholder, multiline (boolean), required (default true)
+### A7: Confirm and insert
 
-**number-picker** — question (string), min (number), max (number). **Must parse min and max as integers.** Optional: description, unit (e.g. "lbs"), step (number, default 1), defaultValue (number), required (default true)
+Summarize: funnel, position, step ID, type, config. Then call `insert_funnel_step`:
 
-**info-card** — title (string), description (string). Optional: stat (e.g. "87%"), bullets (string[], one item per line), buttonText, image (URL)
-
-**welcome** — title (string). Optional: subtitle, logo (URL), image (URL), buttonText (default "Get Started")
-
-**checkout** — title (string), price (number). Optional: subtitle, originalPrice, currency ("USD"), buttonText, features (string[]), guarantee, image (URL)
-
-**result** — title (string). Optional: subtitle, image (URL), features (string[]), ctaText, ctaUrl
-
-### Step 6: Step ID
-
-Ask in a message: "Step ID (unique slug, e.g. budget-question). Used internally—no spaces." Suggest a slug from the question text if helpful (e.g. "What's your budget?" → "budget-question").
-
-### Step 7: Confirm and insert
-
-Summarize: funnel, position, step ID, type, config. Then call `insert_funnel_step` with:
-
-- `funnel_slug`: from Step 1
+- `funnel_slug`: from A1
 - `position`: "beginning" | "after_step" | "end"
-- `after_step_id`: only when position is "after_step" (value from Step 3)
-- `step_id`: from Step 6
-- `type`: from Step 4
-- `config`: object built from Step 5
+- `after_step_id`: only when position is "after_step"
+- `step_id`: from A6
+- `type`: from A4
+- `config`: object built from A5
+
+---
+
+## Flow B: Edit an existing step
+
+### B1: Which funnel version?
+
+Call `list_funnels`. Show draft/unpublished versions prominently.
+
+```
+AskUserQuestion({
+  questions: [{
+    header: "Which funnel version contains the step you want to edit?",
+    options: [
+      { label: "aurora-399-v2 (draft)", value: "aurora-399-v2" },
+      // ... from list_funnels
+    ]
+  }]
+})
+```
+
+> **Warning:** If the user picks a published/live version, remind them that editing a live funnel will break version history. Recommend creating a new draft version first (Flow D), then editing the draft.
+
+### B2: Which step?
+
+Call `get_funnel_steps` with the chosen slug. Show steps with their type:
+
+**IMPORTANT: AskUserQuestion requires 2–4 options.** Use the same two-step drill-down as A3 if there are more than 4 steps.
+
+```
+AskUserQuestion({
+  questions: [{
+    header: "Which step do you want to edit?",
+    options: [
+      { label: "welcome — welcome", value: "welcome" },
+      { label: "gender — multiple-choice", value: "gender" },
+      // 2–4 options from the chosen section
+    ]
+  }]
+})
+```
+
+### B3: Show current config and ask what to change
+
+Read the full config from the `get_funnel_steps` response. Display it to the user:
+
+> "Here's the current config for **[step_id]** (`[type]`):
+> ```json
+> { ... }
+> ```
+> What would you like to change? Describe the changes in plain language or paste the updated fields."
+
+### B4: Confirm and edit
+
+Construct the minimal config diff (only the fields that changed — the tool deep-merges). Summarize what will change, then call `edit_funnel_step`:
+
+- `funnel_slug`: from B1
+- `step_id`: from B2
+- `config`: only the fields being updated (deep-merged with existing)
+
+Report the updated config returned by the tool.
+
+---
+
+## Flow C: Remove a step
+
+### C1: Which funnel version?
+
+Same as B1 — call `list_funnels` and ask.
+
+> **Warning:** Same caution as editing — prefer removing from a draft version, not the live one.
+
+### C2: Which step to remove?
+
+Call `get_funnel_steps`. Use the same 2–4 option drill-down if needed.
+
+### C3: Confirm and remove
+
+Show the step's label/question to the user and confirm:
+
+> "This will permanently remove **[step_id]** (`[type]`: '[question/title]') from `[funnel_slug]`. The remaining steps will be re-sequenced. Are you sure?"
+
+Ask with:
+```
+AskUserQuestion({
+  questions: [{
+    header: "Remove this step?",
+    options: [
+      { label: "Yes, remove it", value: "yes" },
+      { label: "No, cancel", value: "no" }
+    ]
+  }]
+})
+```
+
+If confirmed, call `remove_funnel_step`:
+- `funnel_slug`: from C1
+- `step_id`: from C2
+
+Report success and the new step count.
+
+---
+
+## Flow D: Version management
+
+```
+AskUserQuestion({
+  questions: [{
+    header: "What do you want to do with versions?",
+    options: [
+      { label: "Create a new draft version (copy from existing)", value: "create" },
+      { label: "Publish a draft version (make it live)", value: "publish" }
+    ]
+  }]
+})
+```
+
+### D-Create: Create a new draft version
+
+Call `list_funnels` and ask which version to copy from (typically the current published version). Then call `create_funnel_version`:
+
+- `funnel_slug`: the version to copy from (e.g. `aurora-399-v1`)
+
+Report back:
+- New slug (e.g. `aurora-399-v2`)
+- Preview URL (`?funnel=aurora-399-v2`)
+- Number of steps copied
+- Remind the user this is unpublished — they can edit it safely without affecting live traffic
+
+### D-Publish: Publish a draft version
+
+Call `list_funnels` and ask which **draft/unpublished** version to publish. Warn clearly:
+
+> "Publishing `[draft_slug]` will **replace the current live version** (`[published_slug]`) for all users. This cannot be undone automatically."
+
+Ask:
+```
+AskUserQuestion({
+  questions: [{
+    header: "Publish this version as live?",
+    options: [
+      { label: "Yes, publish it", value: "yes" },
+      { label: "No, cancel", value: "no" }
+    ]
+  }]
+})
+```
+
+If confirmed, call `publish_funnel_version`:
+- `funnel_slug`: the draft slug to publish
+
+Report the new live slug and the URL where users will see the updated funnel.
 
 ---
 
@@ -180,16 +348,18 @@ Build the `config` object from the fields below. **Numbers must be numbers, not 
 | checkout | title, price (int) | subtitle, originalPrice, currency, buttonText, features (string[]), guarantee, image |
 | result | title | subtitle, image, features (string[]), ctaText, ctaUrl |
 
-**Options format:** `[{ id: "yes", label: "Yes" }, { id: "no", label: "No" }]` — each option needs `id` and `label`. Optional: `icon`, `description`.
+**Options format:** `[{ id: "yes", label: "Yes" }, { id: "no", label: "No" }]` — each needs `id` and `label`. Optional: `icon`, `description`.
 
-**Parsing user input:** When the user provides "id: Label" lines, split each line on the first colon. For bullets/features, split on newlines into string[]. For min/max/price/step, use `parseInt()`.
+**Parsing user input:** When user provides "id: Label" lines, split each line on the first colon. For bullets/features, split on newlines into string[]. For min/max/price/step, use `parseInt()`.
 
 ---
 
 ## Key principles
 
-1. **Ask everything first** — Never call `insert_funnel_step` until you have all required fields.
+1. **Ask everything first** — Never call a tool until you have all required fields.
 2. **One question at a time** — Wait for each response before proceeding.
-3. **2–4 options only** — AskUserQuestion requires 2–4 options. For more steps, use two-step drill-down (section → step).
-4. **Free-text = regular message** — Don't use AskUserQuestion for free-text; ask in a message.
-5. **Unique step_id** — Must not duplicate an existing step_id in the funnel.
+3. **2–4 options only** — AskUserQuestion requires 2–4 options; use two-step drill-down for long step lists.
+4. **Free-text = regular message** — Don't use AskUserQuestion for free-text inputs.
+5. **Prefer draft versions for edits** — Always nudge toward editing an unpublished version to protect live traffic.
+6. **Edit is a diff, not a replacement** — Only pass the fields that are actually changing to `edit_funnel_step`; the tool deep-merges.
+7. **Confirm destructive actions** — Always confirm before removing a step or publishing a version.
