@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import "./dashboard.css";
-import { MetaDropZone } from "./MetaDropZone";
 
 const STEP_LABELS: Record<string, string> = {
   welcome: "Welcome",
@@ -67,6 +66,7 @@ interface FunnelVersion {
 interface FunnelFamily {
   baseSlug: string;
   name: string;
+  publishedVersion: number | null;
   versions: FunnelVersion[];
 }
 
@@ -121,16 +121,26 @@ interface MetaData {
   frequency?: number;
 }
 
+function getDefaultDates() {
+  const today = new Date();
+  const lastWeek = new Date(today);
+  lastWeek.setDate(today.getDate() - 7);
+  return {
+    from: lastWeek.toISOString().slice(0, 10),
+    to: today.toISOString().slice(0, 10),
+  };
+}
+
 export default function DashboardPage() {
   const [funnelFamilies, setFunnelFamilies] = useState<FunnelFamily[]>([]);
   const [selectedBaseSlug, setSelectedBaseSlug] = useState("");
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const defaults = getDefaultDates();
+  const [from, setFrom] = useState(defaults.from);
+  const [to, setTo] = useState(defaults.to);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [sessions, setSessions] = useState<SessionData | null>(null);
   const [metaData, setMetaData] = useState<MetaData | null>(null);
-  const [metaUploadedAt, setMetaUploadedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,18 +153,14 @@ export default function DashboardPage() {
     const families: FunnelFamily[] = data.funnels || [];
     setFunnelFamilies(families);
     if (families.length && !selectedBaseSlug) {
-      setSelectedBaseSlug(families[0].baseSlug);
+      const first = families[0];
+      setSelectedBaseSlug(first.baseSlug);
+      // Default to the published version, not "all versions"
+      if (first.publishedVersion !== null) {
+        setSelectedVersion(first.publishedVersion);
+      }
     }
   }, [selectedBaseSlug]);
-
-  const loadMeta = useCallback(async () => {
-    const res = await fetch("/api/admin/meta-export");
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.data) setMetaData(data.data);
-    else setMetaData(null);
-    setMetaUploadedAt(data.uploadedAt || null);
-  }, []);
 
   const loadAll = useCallback(async () => {
     if (!selectedBaseSlug || !from || !to) return;
@@ -181,10 +187,12 @@ export default function DashboardPage() {
       if (selectedVersion !== null) {
         sessParams.set('version', String(selectedVersion));
       }
+      const metaParams = new URLSearchParams({ from, to });
 
-      const [statsRes, sessRes] = await Promise.all([
+      const [statsRes, sessRes, metaRes] = await Promise.all([
         fetch(`/api/admin/dashboard/stats?${statsParams}`),
         fetch(`/api/admin/dashboard/sessions?${sessParams}`),
+        fetch(`/api/admin/meta-stats?${metaParams}`),
       ]);
 
       if (!statsRes.ok) {
@@ -196,13 +204,15 @@ export default function DashboardPage() {
         throw new Error(err.error || "Failed to load sessions");
       }
 
-      const [statsJson, sessJson] = await Promise.all([
+      const [statsJson, sessJson, metaJson] = await Promise.all([
         statsRes.json(),
         sessRes.json(),
+        metaRes.ok ? metaRes.json() : Promise.resolve(null),
       ]);
 
       setStats(statsJson);
       setSessions(sessJson);
+      setMetaData(metaJson?.data ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
       setStats(null);
@@ -214,8 +224,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadFunnels();
-    loadMeta();
-  }, [loadFunnels, loadMeta]);
+  }, [loadFunnels]);
+
+  useEffect(() => {
+    if (selectedBaseSlug && from && to) loadAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBaseSlug]);
 
   const hasDateRange = from && to;
 
@@ -290,8 +304,10 @@ export default function DashboardPage() {
               id="sel-funnel"
               value={selectedBaseSlug}
               onChange={(e) => {
-                setSelectedBaseSlug(e.target.value);
-                setSelectedVersion(null);
+                const slug = e.target.value;
+                setSelectedBaseSlug(slug);
+                const family = funnelFamilies.find(f => f.baseSlug === slug);
+                setSelectedVersion(family?.publishedVersion ?? null);
               }}
               className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
             >
@@ -303,7 +319,7 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
-          {selectedFamily && selectedFamily.versions.length > 1 && (
+          {selectedFamily && (
             <div className="flex items-center gap-2">
               <label
                 htmlFor="sel-version"
@@ -317,12 +333,12 @@ export default function DashboardPage() {
                 onChange={(e) =>
                   setSelectedVersion(e.target.value === "" ? null : parseInt(e.target.value))
                 }
-                className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
+                className="rounded border border-[#7c0667] bg-white px-2 py-1.5 text-sm font-semibold text-[#1a1625] ring-1 ring-[#7c0667]"
               >
                 <option value="">All versions</option>
                 {selectedFamily.versions.map((v) => (
                   <option key={v.versionNumber} value={v.versionNumber}>
-                    v{v.versionNumber}{v.isPublished ? " (live)" : ""}
+                    v{v.versionNumber}{v.isPublished ? " · live" : " · draft"}
                   </option>
                 ))}
               </select>
@@ -394,14 +410,6 @@ export default function DashboardPage() {
             load dashboard data.
           </div>
         )}
-
-        {/* Meta Drop Zone */}
-        <div className="mb-6">
-          <MetaDropZone
-            onUploadSuccess={loadMeta}
-            lastUploadedAt={metaUploadedAt}
-          />
-        </div>
 
         {/* Error banner */}
         {error && (
@@ -882,11 +890,6 @@ export default function DashboardPage() {
             <section className="mb-8">
               <h2 className="dashboard-section-title">
                 Meta Pixel × Backend Cross-Reference
-                {metaUploadedAt && (
-                  <span className="dashboard-pill-purple">
-                    {fmtDate(metaUploadedAt)} snapshot
-                  </span>
-                )}
               </h2>
               <div className="rounded-xl border border-[#c8c2d8] bg-white p-4">
                 <table className="dashboard-data-table w-full text-[0.82rem]">
@@ -919,7 +922,7 @@ export default function DashboardPage() {
                       <td>—</td>
                       <td>—</td>
                       <td className="text-left text-[0.75rem]">
-                        From Meta export
+                        From Meta Marketing API
                       </td>
                     </tr>
                     <tr>
@@ -993,11 +996,6 @@ export default function DashboardPage() {
             <section className="mb-8">
               <h2 className="dashboard-section-title">
                 Ad Performance vs. Launch Plan
-                {metaUploadedAt && (
-                  <span className="dashboard-pill-purple">
-                    {fmtDate(metaUploadedAt)} snapshot
-                  </span>
-                )}
               </h2>
               <div className="rounded-xl border border-[#c8c2d8] bg-white p-4">
                 <table className="dashboard-data-table w-full text-[0.82rem]">
@@ -1070,9 +1068,9 @@ export default function DashboardPage() {
                 </table>
                 <div className="dashboard-callout green">
                   <div className="font-bold">Important</div>
-                  Backend is source of truth for funnel metrics. Meta export
-                  provides ad spend, reach, and CPC. Ensure your Meta export
-                  matches the selected date range for accurate comparison.
+                  Backend is source of truth for funnel metrics. Meta Marketing
+                  API provides ad spend, reach, and CPC for the selected date
+                  range.
                 </div>
               </div>
             </section>
@@ -1081,7 +1079,7 @@ export default function DashboardPage() {
       </main>
 
       <footer className="border-t border-[#c8c2d8] bg-[#f5f3f9] py-6 text-center text-[0.72rem] text-[#6b6480]">
-        Aurora Funnel Dashboard · Backend API + Meta Export · Confidential &
+        Aurora Funnel Dashboard · Backend API + Meta Marketing API · Confidential &
         Proprietary
       </footer>
     </div>

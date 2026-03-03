@@ -13,6 +13,7 @@ export interface FunnelVersion {
 export interface FunnelFamily {
   baseSlug: string;
   name: string;
+  publishedVersion: number | null;
   versions: FunnelVersion[];
 }
 
@@ -28,24 +29,43 @@ export async function GET() {
         baseSlug: funnels.baseSlug,
         versionNumber: funnels.versionNumber,
         isPublished: funnels.isPublished,
+        createdAt: funnels.createdAt,
       })
       .from(funnels)
       .orderBy(asc(funnels.baseSlug), asc(funnels.versionNumber));
 
-    // Group into families keyed by baseSlug
-    const familyMap = new Map<string, FunnelFamily>();
+    // Group into families keyed by baseSlug, tracking min createdAt per family
+    const familyMap = new Map<string, FunnelFamily & { _minCreatedAt: Date }>();
     for (const f of list) {
       if (!familyMap.has(f.baseSlug)) {
-        familyMap.set(f.baseSlug, { baseSlug: f.baseSlug, name: f.name, versions: [] });
+        familyMap.set(f.baseSlug, {
+          baseSlug: f.baseSlug,
+          name: f.name,
+          publishedVersion: null,
+          versions: [],
+          _minCreatedAt: f.createdAt,
+        });
       }
-      familyMap.get(f.baseSlug)!.versions.push({
+      const family = familyMap.get(f.baseSlug)!;
+      family.versions.push({
         slug: f.slug,
         versionNumber: f.versionNumber,
         isPublished: f.isPublished,
       });
+      if (f.isPublished) {
+        family.publishedVersion = f.versionNumber;
+      }
+      if (f.createdAt < family._minCreatedAt) {
+        family._minCreatedAt = f.createdAt;
+      }
     }
 
-    return NextResponse.json({ funnels: Array.from(familyMap.values()) });
+    // Sort families by when they were first created — oldest (most established) first
+    const sorted = Array.from(familyMap.values())
+      .sort((a, b) => a._minCreatedAt.getTime() - b._minCreatedAt.getTime())
+      .map(({ _minCreatedAt: _, ...rest }) => rest);
+
+    return NextResponse.json({ funnels: sorted });
   } catch (error) {
     console.error('Admin dashboard funnels error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
