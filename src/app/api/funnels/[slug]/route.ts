@@ -11,14 +11,20 @@ export async function GET(
     try {
         const { slug } = await params;
 
-        // First try exact slug match (works for versioned preview URLs like ?funnel=aurora-399-v2)
-        let funnel = await db.query.funnels.findFirst({
-            where: eq(funnels.slug, slug),
-            with: { steps: { orderBy: [asc(funnelSteps.sortOrder)] } },
-        });
+        // Versioned preview slugs end with -vN (e.g. aurora-399-v2).
+        // Non-versioned slugs (e.g. aurora-399) are "live" URLs that should
+        // always resolve to the published version — never a bare slug row.
+        const isVersionedSlug = /-v\d+$/.test(slug);
 
-        // Fall back to base_slug + published (works for live URLs like ?funnel=aurora-399)
-        if (!funnel) {
+        let funnel;
+        if (isVersionedSlug) {
+            // Exact slug match — preview any version regardless of publish status
+            funnel = await db.query.funnels.findFirst({
+                where: eq(funnels.slug, slug),
+                with: { steps: { orderBy: [asc(funnelSteps.sortOrder)] } },
+            });
+        } else {
+            // Live URL — only serve the published version for this base_slug
             funnel = await db.query.funnels.findFirst({
                 where: and(eq(funnels.baseSlug, slug), eq(funnels.isPublished, true)),
                 with: { steps: { orderBy: [asc(funnelSteps.sortOrder)] } },

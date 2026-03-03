@@ -39,6 +39,33 @@ function slugify(text: string): string {
         .slice(0, 60);
 }
 
+function deepMerge(
+    base: Record<string, unknown>,
+    override: Record<string, unknown>
+): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...base };
+    for (const key of Object.keys(override)) {
+        const baseVal = base[key];
+        const overrideVal = override[key];
+        if (
+            overrideVal !== null &&
+            typeof overrideVal === 'object' &&
+            !Array.isArray(overrideVal) &&
+            baseVal !== null &&
+            typeof baseVal === 'object' &&
+            !Array.isArray(baseVal)
+        ) {
+            result[key] = deepMerge(
+                baseVal as Record<string, unknown>,
+                overrideVal as Record<string, unknown>
+            );
+        } else {
+            result[key] = overrideVal;
+        }
+    }
+    return result;
+}
+
 // ── Tool: create_project ─────────────────────────────────────────────
 server.tool(
     'create_project',
@@ -1009,7 +1036,7 @@ server.tool(
             return { content: [{ type: 'text' as const, text: `Error: Step not found: ${step_id} in funnel ${funnel_slug}` }] };
         }
 
-        const mergedConfig = { ...(step.config as Record<string, unknown>), ...newConfig };
+        const mergedConfig = deepMerge(step.config as Record<string, unknown>, newConfig);
 
         const [updated] = await db.update(schema.funnelSteps)
             .set({ config: mergedConfig })
