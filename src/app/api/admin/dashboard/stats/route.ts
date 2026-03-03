@@ -133,15 +133,26 @@ export async function GET(request: NextRequest) {
       viewCounts.map((v) => [v.step_id, { views: Number(v.views), type: v.step_type }])
     );
 
-    // When a path filter is active, exclude steps that belong to a different branch
+    // When a path filter is active, exclude steps that belong to a different branch.
+    // Mirror the client's evaluateCondition: given response[filterStep] = filterValue, is the step visible?
     const visibleSteps = filterStep && filterValue
       ? funnelStepsList.filter((step) => {
-          if (!step.showIf) return true; // unconditional steps are always visible
+          if (!step.showIf) return true;
           const condition = step.showIf as StepCondition;
-          // Keep steps whose condition references the selected branching step with the selected value
           if (condition.stepId !== filterStep) return false;
-          const condValues = Array.isArray(condition.value) ? condition.value : [condition.value];
-          return condValues.includes(filterValue);
+          const cv = condition.value;
+          switch (condition.operator) {
+            case 'equals':
+              return cv === filterValue;
+            case 'not_equals':
+              return cv !== filterValue;
+            case 'in':
+              return Array.isArray(cv) && cv.includes(filterValue);
+            case 'not_in':
+              return Array.isArray(cv) && !cv.includes(filterValue);
+            default:
+              return true;
+          }
         })
       : funnelStepsList;
 

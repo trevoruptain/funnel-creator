@@ -156,8 +156,13 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [paths, setPaths] = useState<PathSegment[]>([]);
   const [selectedPath, setSelectedPath] = useState<{ stepId: string; value: string } | null>(null);
+  const [dateBounds, setDateBounds] = useState<{ min: string | null; max: string | null }>({
+    min: null,
+    max: null,
+  });
 
   const selectedFamily = funnelFamilies.find((f) => f.baseSlug === selectedBaseSlug) ?? null;
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const loadFunnels = useCallback(async () => {
     const res = await fetch("/api/admin/dashboard/funnels");
@@ -248,15 +253,21 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBaseSlug]);
 
-  // Load path segments whenever funnel/version changes
+  // Load path segments and date bounds whenever funnel/version changes
   useEffect(() => {
-    if (!selectedBaseSlug) return;
+    if (!selectedBaseSlug) {
+      setDateBounds({ min: null, max: null });
+      return;
+    }
     setSelectedPath(null);
     const params = new URLSearchParams({ funnel: selectedBaseSlug });
     if (selectedVersion !== null) params.set('version', String(selectedVersion));
     fetch(`/api/admin/dashboard/paths?${params}`)
       .then((r) => (r.ok ? r.json() : { paths: [] }))
       .then((d) => setPaths(d.paths ?? []));
+    fetch(`/api/admin/dashboard/date-bounds?${params}`)
+      .then((r) => (r.ok ? r.json() : { min: null, max: null }))
+      .then((d) => setDateBounds({ min: d.min ?? null, max: d.max ?? null }));
   }, [selectedBaseSlug, selectedVersion]);
 
   // Re-fetch stats whenever the path filter changes (if data is already loaded)
@@ -391,6 +402,8 @@ export default function DashboardPage() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
+              min={dateBounds.min ?? undefined}
+              max={todayStr}
               className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
             />
           </div>
@@ -406,6 +419,8 @@ export default function DashboardPage() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
+              min={(from || dateBounds.min) ?? undefined}
+              max={todayStr}
               className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
             />
           </div>
@@ -618,13 +633,12 @@ export default function DashboardPage() {
                   );
                   return activeSteps.map((s, i) => {
                     const pct = Math.round(((s.views || 0) / maxV) * 100);
-                    const prevViews = i > 0 ? activeSteps[i - 1].views : 0;
+                    const nextViews = i < activeSteps.length - 1 ? activeSteps[i + 1].views : 0;
                     const isBranchBoundary =
-                      i > 0 &&
-                      (s.views > prevViews || s.views < prevViews * 0.25);
+                      i < activeSteps.length - 1 && (nextViews ?? 0) > (s.views ?? 0);
                     const stepDrop =
-                      i > 0 && prevViews > 0 && !isBranchBoundary
-                        ? Math.round(((prevViews - s.views) / prevViews) * 100)
+                      i < activeSteps.length - 1 && (s.views ?? 0) > 0 && !isBranchBoundary
+                        ? Math.round((((s.views ?? 0) - nextViews) / (s.views ?? 0)) * 100)
                         : null;
                     const isBig = stepDrop != null && stepDrop > 15;
                     const color =
@@ -649,12 +663,17 @@ export default function DashboardPage() {
                         </div>
                         <div
                           className={`text-right text-[0.75rem] font-tabular-nums ${isBig ? "font-semibold text-[#b8003c]" : ""}`}
+                          title={
+                            i < activeSteps.length - 1
+                              ? `Drop-off to ${stepLabel(activeSteps[i + 1].step_id)}`
+                              : undefined
+                          }
                         >
-                          {i === 0
-                            ? ""
-                            : stepDrop != null
+                          {i < activeSteps.length - 1
+                            ? stepDrop != null
                               ? `-${stepDrop}%`
-                              : "—"}
+                              : "—"
+                            : ""}
                         </div>
                       </div>
                     );
@@ -672,11 +691,21 @@ export default function DashboardPage() {
                       active.find((s) => s.step_id === "checkout")?.views ??
                       active[active.length - 1]?.views ??
                       0;
+                    const hasSubBranches = active.some(
+                      (s, i) => i > 0 && (s.views ?? 0) > (active[i - 1].views ?? 0),
+                    );
                     return (
-                      <p className="mt-3 text-[0.75rem] text-[#6b6480]">
-                        {firstViews} users reached the first step;{" "}
-                        {completedViews} completed the full funnel.
-                      </p>
+                      <div className="mt-3 space-y-1">
+                        <p className="text-[0.75rem] text-[#6b6480]">
+                          {firstViews} users reached the first step;{" "}
+                          {completedViews} completed the full funnel.
+                        </p>
+                        {selectedPath && hasSubBranches && (
+                          <p className="text-[0.7rem] italic text-[#6b6480]">
+                            This path has sub-branches: some users skip certain steps and rejoin later, so later steps can show higher N than earlier ones.
+                          </p>
+                        )}
+                      </div>
                     );
                   })()}
               </div>
