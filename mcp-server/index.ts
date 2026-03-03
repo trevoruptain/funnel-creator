@@ -1227,6 +1227,14 @@ server.tool(
             }
         }
 
+        // 7. Pre-flight: ensure at least one concept has a generated image before touching Meta
+        const conceptsWithImages = project.adConcepts.filter(
+            c => c.images.some(img => img.status === 'generated' && img.blobUrl)
+        );
+        if (conceptsWithImages.length === 0) {
+            return { content: [{ type: 'text' as const, text: 'Error: No concepts with generated images found. Run generate_ad_image first before publishing.' }] };
+        }
+
         // Helper: POST to Meta Graph API
         const metaPost = async (endpoint: string, body: Record<string, unknown>) => {
             const url = `https://graph.facebook.com/${metaApiVersion}/${endpoint}`;
@@ -1242,7 +1250,7 @@ server.tool(
             return data as { id: string };
         };
 
-        // 7. Create Campaign (PAUSED)
+        // 8. Create Campaign (PAUSED)
         const startDateStr = start_date ?? new Date().toISOString().slice(0, 10);
         const campaignName = `${project.name}_${objective.replace('OUTCOME_', '')}_${startDateStr}`;
         const campaign = await metaPost(`act_${adAccountId}/campaigns`, {
@@ -1253,7 +1261,7 @@ server.tool(
         });
         const campaignId = campaign.id;
 
-        // 8. Create Ad Set (PAUSED)
+        // 9. Create Ad Set (PAUSED)
         const targeting: Record<string, unknown> = {
             geo_locations: geoLocations,
             publisher_platforms: publisherPlatforms,
@@ -1279,7 +1287,7 @@ server.tool(
             .set({ metaCampaignId: campaignId, metaAdSetId: adSetId })
             .where(eq(schema.projects.id, project_id));
 
-        // 9. CTA text → Meta CTA type mapping
+        // 10. CTA text → Meta CTA type mapping
         const ctaTypeMap: Record<string, string> = {
             'sign up': 'SIGN_UP',
             'join waitlist': 'SIGN_UP',
@@ -1302,15 +1310,6 @@ server.tool(
             : 'https://example.com';
 
         // 10. For each concept that has a generated image: upload → creative → ad
-        const conceptsWithImages = project.adConcepts.filter(
-            c => c.images.some(img => img.status === 'generated' && img.blobUrl)
-        );
-
-        if (conceptsWithImages.length === 0) {
-            // Campaign + ad set were created — clean that info up
-            return { content: [{ type: 'text' as const, text: `Error: No concepts with generated images found. Run generate_ad_image first. Campaign (${campaignId}) and ad set (${adSetId}) were created but no ads were added.` }] };
-        }
-
         const adResults: Array<{
             concept_id: string;
             angle_name: string;
