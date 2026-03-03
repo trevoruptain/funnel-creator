@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   integer,
   jsonb,
   pgEnum,
@@ -59,7 +60,10 @@ export const funnels = pgTable("funnels", {
   projectId: uuid("project_id").references(() => projects.id, {
     onDelete: "set null",
   }),
-  slug: text("slug").notNull().unique(), // e.g. "maternal-fetal-399-v1"
+  slug: text("slug").notNull().unique(), // e.g. "aurora-399-v2"
+  baseSlug: text("base_slug").notNull(), // shared across versions e.g. "aurora-399"
+  versionNumber: integer("version_number").notNull().default(1),
+  isPublished: boolean("is_published").notNull().default(false),
   name: text("name").notNull(),
   version: text("version"),
   priceVariant: text("price_variant"),

@@ -494,13 +494,19 @@ server.tool(
 // ── Tool: list_funnels ────────────────────────────────────────────────
 server.tool(
     'list_funnels',
-    'List all funnels with slug and name. Used to present funnel options when inserting steps.',
+    'List all funnels grouped by version family. Shows base_slug, version_number, is_published, slug, and name so you can identify which version is live and what drafts exist.',
     {},
     async () => {
         const list = await db
-            .select({ slug: schema.funnels.slug, name: schema.funnels.name })
+            .select({
+                slug: schema.funnels.slug,
+                name: schema.funnels.name,
+                baseSlug: schema.funnels.baseSlug,
+                versionNumber: schema.funnels.versionNumber,
+                isPublished: schema.funnels.isPublished,
+            })
             .from(schema.funnels)
-            .orderBy(schema.funnels.name);
+            .orderBy(schema.funnels.baseSlug, schema.funnels.versionNumber);
 
         return {
             content: [{
@@ -514,7 +520,7 @@ server.tool(
 // ── Tool: get_funnel_steps ────────────────────────────────────────────
 server.tool(
     'get_funnel_steps',
-    'Get all steps for a funnel (sort_order, step_id, type). Used when user inserts in middle to pick "after which step".',
+    'Get all steps for a funnel including full config and showIf conditions. Use this before editing a step to read its current content (question text, options, etc.).',
     {
         funnel_slug: z.string().describe('Funnel slug (e.g. aurora-399-v1)'),
     },
@@ -530,7 +536,7 @@ server.tool(
         const steps = await db.query.funnelSteps.findMany({
             where: eq(schema.funnelSteps.funnelId, funnel.id),
             orderBy: [asc(schema.funnelSteps.sortOrder)],
-            columns: { sortOrder: true, stepId: true, type: true },
+            columns: { sortOrder: true, stepId: true, type: true, config: true, showIf: true },
         });
 
         return {
@@ -853,6 +859,230 @@ Render everything as one cohesive, ready-to-publish creative. Be creative with h
                     image_id,
                     blob_url: blob.url,
                     pathname,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: create_funnel_version ──────────────────────────────────────
+server.tool(
+    'create_funnel_version',
+    'Create a new version of a funnel by copying all its steps. The new version is unpublished (draft) and can be previewed via ?funnel=<new_slug>. Call publish_funnel_version when ready to go live.',
+    {
+        funnel_slug: z.string().describe('Slug of the funnel version to copy from (e.g. aurora-399-v1)'),
+    },
+    async ({ funnel_slug }) => {
+        // 1. Load the source funnel
+        const source = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+            with: { steps: { orderBy: [asc(schema.funnelSteps.sortOrder)] } },
+        });
+
+        if (!source) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        // 2. Find the highest version number in this family
+        const siblings = await db
+            .select({ versionNumber: schema.funnels.versionNumber })
+            .from(schema.funnels)
+            .where(eq(schema.funnels.baseSlug, source.baseSlug));
+
+        const maxVersion = Math.max(...siblings.map((s) => s.versionNumber));
+        const newVersion = maxVersion + 1;
+        const newSlug = `${source.baseSlug}-v${newVersion}`;
+
+        // 3. Insert the new funnel row
+        const [newFunnel] = await db.insert(schema.funnels).values({
+            projectId: source.projectId,
+            slug: newSlug,
+            baseSlug: source.baseSlug,
+            versionNumber: newVersion,
+            isPublished: false,
+            name: source.name,
+            version: source.version,
+            priceVariant: source.priceVariant,
+            theme: source.theme,
+            tracking: source.tracking,
+            meta: source.meta,
+        }).returning({ id: schema.funnels.id });
+
+        // 4. Copy all steps to the new funnel
+        if (source.steps.length > 0) {
+            await db.insert(schema.funnelSteps).values(
+                source.steps.map((step) => ({
+                    funnelId: newFunnel.id,
+                    sortOrder: step.sortOrder,
+                    stepId: step.stepId,
+                    type: step.type,
+                    config: step.config,
+                    showIf: step.showIf,
+                }))
+            );
+        }
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    new_funnel_slug: newSlug,
+                    version_number: newVersion,
+                    copied_from: funnel_slug,
+                    steps_copied: source.steps.length,
+                    is_published: false,
+                    preview_url: `?funnel=${newSlug}`,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: publish_funnel_version ─────────────────────────────────────
+server.tool(
+    'publish_funnel_version',
+    'Promote a funnel version to live/published. Unpublishes all other versions in the same family. After publishing, the funnel is accessible via ?funnel=<base_slug>.',
+    {
+        funnel_slug: z.string().describe('Slug of the funnel version to publish (e.g. aurora-399-v2)'),
+    },
+    async ({ funnel_slug }) => {
+        const target = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+            columns: { id: true, baseSlug: true, versionNumber: true },
+        });
+
+        if (!target) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        // Unpublish all versions in this family
+        await db.update(schema.funnels)
+            .set({ isPublished: false })
+            .where(eq(schema.funnels.baseSlug, target.baseSlug));
+
+        // Publish the target version
+        await db.update(schema.funnels)
+            .set({ isPublished: true })
+            .where(eq(schema.funnels.id, target.id));
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    published: funnel_slug,
+                    version_number: target.versionNumber,
+                    base_slug: target.baseSlug,
+                    live_url: `?funnel=${target.baseSlug}`,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: edit_funnel_step ────────────────────────────────────────────
+server.tool(
+    'edit_funnel_step',
+    'Edit the config of a specific step within a funnel version. The config is deep-merged with the existing step config. Call get_funnel_steps first to see the current step structure.',
+    {
+        funnel_slug: z.string().describe('Funnel slug to edit (should be an unpublished draft version)'),
+        step_id: z.string().describe('Step ID to edit (e.g. pregnancy-status)'),
+        config: z.record(z.string(), z.unknown()).describe('Config fields to update (deep-merged into existing config)'),
+    },
+    async ({ funnel_slug, step_id, config: newConfig }) => {
+        const funnel = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+            columns: { id: true },
+        });
+
+        if (!funnel) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        const step = await db.query.funnelSteps.findFirst({
+            where: and(
+                eq(schema.funnelSteps.funnelId, funnel.id),
+                eq(schema.funnelSteps.stepId, step_id)
+            ),
+        });
+
+        if (!step) {
+            return { content: [{ type: 'text' as const, text: `Error: Step not found: ${step_id} in funnel ${funnel_slug}` }] };
+        }
+
+        const mergedConfig = { ...(step.config as Record<string, unknown>), ...newConfig };
+
+        const [updated] = await db.update(schema.funnelSteps)
+            .set({ config: mergedConfig })
+            .where(eq(schema.funnelSteps.id, step.id))
+            .returning();
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    updated: true,
+                    step_id,
+                    funnel_slug,
+                    config: updated.config,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: remove_funnel_step ──────────────────────────────────────────
+server.tool(
+    'remove_funnel_step',
+    'Remove a step from a funnel version and re-sequence sort_order for the remaining steps.',
+    {
+        funnel_slug: z.string().describe('Funnel slug to edit (should be an unpublished draft version)'),
+        step_id: z.string().describe('Step ID to remove (e.g. budget-question)'),
+    },
+    async ({ funnel_slug, step_id }) => {
+        const funnel = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+            columns: { id: true },
+        });
+
+        if (!funnel) {
+            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        }
+
+        const step = await db.query.funnelSteps.findFirst({
+            where: and(
+                eq(schema.funnelSteps.funnelId, funnel.id),
+                eq(schema.funnelSteps.stepId, step_id)
+            ),
+            columns: { id: true, sortOrder: true },
+        });
+
+        if (!step) {
+            return { content: [{ type: 'text' as const, text: `Error: Step not found: ${step_id} in funnel ${funnel_slug}` }] };
+        }
+
+        // Delete the step
+        await db.delete(schema.funnelSteps).where(eq(schema.funnelSteps.id, step.id));
+
+        // Re-sequence remaining steps to close the gap
+        const remaining = await db.query.funnelSteps.findMany({
+            where: eq(schema.funnelSteps.funnelId, funnel.id),
+            orderBy: [asc(schema.funnelSteps.sortOrder)],
+            columns: { id: true },
+        });
+
+        for (let i = 0; i < remaining.length; i++) {
+            await db.update(schema.funnelSteps)
+                .set({ sortOrder: i })
+                .where(eq(schema.funnelSteps.id, remaining[i].id));
+        }
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    removed: step_id,
+                    funnel_slug,
+                    remaining_steps: remaining.length,
                 }, null, 2),
             }],
         };

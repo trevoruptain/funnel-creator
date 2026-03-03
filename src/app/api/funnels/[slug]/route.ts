@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { funnelSteps, funnels } from '@/db/schema';
 import type { FunnelConfig } from '@/types/funnel';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -11,15 +11,19 @@ export async function GET(
     try {
         const { slug } = await params;
 
-        // Query funnel with all its steps
-        const funnel = await db.query.funnels.findFirst({
+        // First try exact slug match (works for versioned preview URLs like ?funnel=aurora-399-v2)
+        let funnel = await db.query.funnels.findFirst({
             where: eq(funnels.slug, slug),
-            with: {
-                steps: {
-                    orderBy: [asc(funnelSteps.sortOrder)],
-                },
-            },
+            with: { steps: { orderBy: [asc(funnelSteps.sortOrder)] } },
         });
+
+        // Fall back to base_slug + published (works for live URLs like ?funnel=aurora-399)
+        if (!funnel) {
+            funnel = await db.query.funnels.findFirst({
+                where: and(eq(funnels.baseSlug, slug), eq(funnels.isPublished, true)),
+                with: { steps: { orderBy: [asc(funnelSteps.sortOrder)] } },
+            });
+        }
 
         if (!funnel) {
             return NextResponse.json(

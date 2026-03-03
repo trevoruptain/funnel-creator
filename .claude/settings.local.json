@@ -9,6 +9,10 @@
       "mcp__funnel-creator__list_funnels",
       "mcp__funnel-creator__get_funnel_steps",
       "mcp__funnel-creator__insert_funnel_step",
+      "mcp__funnel-creator__create_funnel_version",
+      "mcp__funnel-creator__publish_funnel_version",
+      "mcp__funnel-creator__edit_funnel_step",
+      "mcp__funnel-creator__remove_funnel_step",
       "Skill(funnel-editor)",
       "Skill(funnel-creator)"
     ]
