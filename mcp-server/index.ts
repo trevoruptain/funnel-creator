@@ -12,6 +12,8 @@ import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 import { and, asc, desc, eq, gt, sql as sqlFragment } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { z } from 'zod';
 import * as schema from '../src/db/schema.js';
 import { GEMINI_MODELS } from './constants.js';
@@ -29,6 +31,30 @@ const server = new McpServer({
     name: 'funnel-creator',
     version: '1.0.0',
 });
+
+// ── Tool: read_skill ──────────────────────────────────────────────────
+// Call once per session at the start, before the first funnel tool.
+// Returns full SKILL.md workflow(s) so Claude has complete context.
+server.tool(
+    'read_skill',
+    'Call once at the start of a session, before the first funnel-related tool (create_project, add_ad_concepts, generate_ad_image, insert_funnel_step, etc.). Returns the full SKILL.md workflow. Use skill_name "both" to load both funnel-creator and funnel-editor for complete context. Only call once per session, not before every tool.',
+    {
+        skill_name: z.enum(['funnel-creator', 'funnel-editor', 'both']).describe('Which skill(s) to read. Use "both" at session start to load full context for all funnel tools.'),
+    },
+    async ({ skill_name }) => {
+        const skills = skill_name === 'both' ? ['funnel-creator', 'funnel-editor'] : [skill_name];
+        const parts: string[] = [];
+        for (const name of skills) {
+            const path = resolve(process.cwd(), `skills/${name}/SKILL.md`);
+            const text = readFileSync(path, 'utf-8');
+            parts.push(`---\n# ${name}\n---\n\n${text}`);
+        }
+        const text = parts.join('\n\n');
+        return {
+            content: [{ type: 'text' as const, text }],
+        };
+    }
+);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function slugify(text: string): string {
