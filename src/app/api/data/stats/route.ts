@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { funnelSteps, funnels, responses, sessions, stepViews } from '@/db/schema';
+import { funnelSteps, responses, sessions, stepViews } from '@/db/schema';
 import { validateApiKey } from '@/lib/auth';
-import { and, eq, gte, lte, sql } from 'drizzle-orm';
+import { resolveFunnel } from '@/lib/resolve-funnel';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -10,11 +11,21 @@ import { NextRequest, NextResponse } from 'next/server';
  * Aggregated funnel metrics for dashboards and visualizations.
  *
  * Query params:
- *   funnel    — filter by funnel slug (required)
- *   from      — ISO date, sessions started on or after
- *   to        — ISO date, sessions started on or before
+ *   funnel    — funnel base slug or versioned slug (required)
+ *               e.g. "aurora-399" (all versions) or "aurora-399-v2" (specific version)
+ *   version   — optional version number to filter to a specific version
+ *               e.g. version=1 with funnel=aurora-399 returns only v1 data
+ *               ignored when funnel is already a versioned slug (aurora-399-v2)
+ *   from      — ISO date, sessions started on or after (optional)
+ *   to        — ISO date, sessions started on or before (optional)
+ *
+ * Version resolution rules:
+ *   funnel=aurora-399             → aggregate across ALL versions
+ *   funnel=aurora-399&version=1   → only v1
+ *   funnel=aurora-399-v2          → only v2 (exact slug, version param ignored)
  *
  * Returns:
+ *   - funnel: metadata including base_slug, versions_included, is_aggregated
  *   - overview: total sessions, completions, completion rate, unique emails
  *   - step_drop_off: how many people viewed / answered each step
  *   - answer_distributions: for each question step, count of each answer value
@@ -25,27 +36,38 @@ export async function GET(request: NextRequest) {
 
     try {
         const { searchParams } = new URL(request.url);
-        const funnelSlug = searchParams.get('funnel');
+        const funnelParam = searchParams.get('funnel');
+        const versionParam = searchParams.get('version');
         const from = searchParams.get('from');
         const to = searchParams.get('to');
 
-        if (!funnelSlug) {
+        if (!funnelParam) {
             return NextResponse.json(
-                { error: 'The "funnel" query parameter is required (e.g. ?funnel=maternal-fetal-399-v1)' },
+                {
+                    error: 'The "funnel" query parameter is required',
+                    examples: [
+                        '?funnel=aurora-399              (all versions, aggregated)',
+                        '?funnel=aurora-399&version=1    (v1 only)',
+                        '?funnel=aurora-399-v2           (v2 only, exact slug)',
+                    ],
+                },
                 { status: 400 }
             );
         }
 
-        const funnel = await db.query.funnels.findFirst({
-            where: eq(funnels.slug, funnelSlug),
-        });
-
-        if (!funnel) {
-            return NextResponse.json({ error: `Funnel not found: ${funnelSlug}` }, { status: 404 });
+        const resolution = await resolveFunnel(funnelParam, versionParam);
+        if (!resolution) {
+            return NextResponse.json({ error: `Funnel not found: ${funnelParam}` }, { status: 404 });
         }
 
+        const { funnelIds, stepFunnel, targetFunnels, isAggregated } = resolution;
+
         // Date conditions on sessions
-        const sessionConditions = [eq(sessions.funnelId, funnel.id)];
+        const sessionConditions = [
+            funnelIds.length === 1
+                ? eq(sessions.funnelId, funnelIds[0])
+                : inArray(sessions.funnelId, funnelIds),
+        ];
         if (from) sessionConditions.push(gte(sessions.startedAt, new Date(from)));
         if (to) sessionConditions.push(lte(sessions.startedAt, new Date(to)));
         const sessionWhere = and(...sessionConditions);
@@ -66,7 +88,6 @@ export async function GET(request: NextRequest) {
         const completedSessions = Number(overview.completed_sessions);
 
         // ── 2. Step drop-off ─────────────────────────────────────────
-        // For each step: how many unique sessions viewed it, how many answered it
         const viewCounts = await db
             .select({
                 step_id: stepViews.stepId,
@@ -92,9 +113,9 @@ export async function GET(request: NextRequest) {
             responseCounts.map((r) => [r.step_id, Number(r.answers)])
         );
 
-        // Get step ordering from funnel_steps
+        // Use published/latest version's step list for step ordering
         const funnelStepsList = await db.query.funnelSteps.findMany({
-            where: eq(funnelSteps.funnelId, funnel.id),
+            where: eq(funnelSteps.funnelId, stepFunnel.id),
             orderBy: (fs, { asc }) => [asc(fs.sortOrder)],
             columns: { stepId: true, type: true, sortOrder: true },
         });
@@ -126,28 +147,28 @@ export async function GET(request: NextRequest) {
             .where(sessionWhere)
             .groupBy(responses.stepId, responses.value);
 
-        // Group by step_id
         const distributions: Record<string, { value: unknown; count: number }[]> = {};
         for (const row of answerDist) {
             if (!distributions[row.step_id]) {
                 distributions[row.step_id] = [];
             }
-            distributions[row.step_id].push({
-                value: row.value,
-                count: Number(row.count),
-            });
+            distributions[row.step_id].push({ value: row.value, count: Number(row.count) });
         }
-
-        // Sort each step's answers by count descending
         for (const stepId of Object.keys(distributions)) {
             distributions[stepId].sort((a, b) => b.count - a.count);
         }
 
         return NextResponse.json({
             funnel: {
-                slug: funnel.slug,
-                name: funnel.name,
-                price_variant: funnel.priceVariant,
+                base_slug: stepFunnel.baseSlug,
+                name: stepFunnel.name,
+                price_variant: stepFunnel.priceVariant,
+                is_aggregated: isAggregated,
+                versions_included: targetFunnels.map((f) => f.versionNumber),
+                // Single-version fields (null when aggregating across versions)
+                slug: isAggregated ? null : stepFunnel.slug,
+                version_number: isAggregated ? null : stepFunnel.versionNumber,
+                is_published: isAggregated ? null : stepFunnel.isPublished,
             },
             date_range: {
                 from: from ?? overview.first_session,

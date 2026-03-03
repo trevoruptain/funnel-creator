@@ -58,8 +58,28 @@ function fmtDate(s: string | null | undefined): string {
   });
 }
 
+interface FunnelVersion {
+  slug: string;
+  versionNumber: number;
+  isPublished: boolean;
+}
+
+interface FunnelFamily {
+  baseSlug: string;
+  name: string;
+  versions: FunnelVersion[];
+}
+
 interface StatsData {
-  funnel: { slug: string; name: string };
+  funnel: {
+    base_slug: string;
+    name: string;
+    is_aggregated: boolean;
+    versions_included: number[];
+    slug: string | null;
+    version_number: number | null;
+    is_published: boolean | null;
+  };
   date_range: { from?: string; to?: string };
   overview: {
     total_sessions: number;
@@ -102,10 +122,9 @@ interface MetaData {
 }
 
 export default function DashboardPage() {
-  const [funnels, setFunnels] = useState<Array<{ slug: string; name: string }>>(
-    [],
-  );
-  const [funnelSlug, setFunnelSlug] = useState("");
+  const [funnelFamilies, setFunnelFamilies] = useState<FunnelFamily[]>([]);
+  const [selectedBaseSlug, setSelectedBaseSlug] = useState("");
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -115,15 +134,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedFamily = funnelFamilies.find((f) => f.baseSlug === selectedBaseSlug) ?? null;
+
   const loadFunnels = useCallback(async () => {
     const res = await fetch("/api/admin/dashboard/funnels");
     if (!res.ok) return;
     const data = await res.json();
-    setFunnels(data.funnels || []);
-    if (data.funnels?.length && !funnelSlug) {
-      setFunnelSlug(data.funnels[0].slug);
+    const families: FunnelFamily[] = data.funnels || [];
+    setFunnelFamilies(families);
+    if (families.length && !selectedBaseSlug) {
+      setSelectedBaseSlug(families[0].baseSlug);
     }
-  }, [funnelSlug]);
+  }, [selectedBaseSlug]);
 
   const loadMeta = useCallback(async () => {
     const res = await fetch("/api/admin/meta-export");
@@ -135,7 +157,7 @@ export default function DashboardPage() {
   }, []);
 
   const loadAll = useCallback(async () => {
-    if (!funnelSlug || !from || !to) return;
+    if (!selectedBaseSlug || !from || !to) return;
 
     setLoading(true);
     setError(null);
@@ -143,16 +165,22 @@ export default function DashboardPage() {
     try {
       const toEndOfDay = to + 'T23:59:59';
       const statsParams = new URLSearchParams({
-        funnel: funnelSlug,
+        funnel: selectedBaseSlug,
         from,
         to: toEndOfDay,
       });
+      if (selectedVersion !== null) {
+        statsParams.set('version', String(selectedVersion));
+      }
       const sessParams = new URLSearchParams({
-        funnel: funnelSlug,
+        funnel: selectedBaseSlug,
         from,
         to: toEndOfDay,
         limit: "500",
       });
+      if (selectedVersion !== null) {
+        sessParams.set('version', String(selectedVersion));
+      }
 
       const [statsRes, sessRes] = await Promise.all([
         fetch(`/api/admin/dashboard/stats?${statsParams}`),
@@ -182,7 +210,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [funnelSlug, from, to]);
+  }, [selectedBaseSlug, selectedVersion, from, to]);
 
   useEffect(() => {
     loadFunnels();
@@ -190,6 +218,14 @@ export default function DashboardPage() {
   }, [loadFunnels, loadMeta]);
 
   const hasDateRange = from && to;
+
+  // Build a label for the header showing selected funnel + version context
+  const funnelLabel = selectedFamily
+    ? selectedVersion !== null
+      ? `${selectedFamily.name} · v${selectedVersion}`
+      : `${selectedFamily.name} · All versions`
+    : "—";
+
   const ov: StatsData["overview"] = stats?.overview ?? {
     total_sessions: 0,
     total_responses: 0,
@@ -232,7 +268,7 @@ export default function DashboardPage() {
         </div>
         <div className="text-right text-xs opacity-70">
           <div>
-            <strong>Funnel:</strong> {funnelSlug || "—"}
+            <strong>Funnel:</strong> {funnelLabel}
           </div>
           <div className="mt-1">
             Last refreshed: {stats ? new Date().toLocaleTimeString() : "—"}
@@ -252,18 +288,46 @@ export default function DashboardPage() {
             </label>
             <select
               id="sel-funnel"
-              value={funnelSlug}
-              onChange={(e) => setFunnelSlug(e.target.value)}
+              value={selectedBaseSlug}
+              onChange={(e) => {
+                setSelectedBaseSlug(e.target.value);
+                setSelectedVersion(null);
+              }}
               className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
             >
               <option value="">Select funnel</option>
-              {funnels.map((f) => (
-                <option key={f.slug} value={f.slug}>
+              {funnelFamilies.map((f) => (
+                <option key={f.baseSlug} value={f.baseSlug}>
                   {f.name}
                 </option>
               ))}
             </select>
           </div>
+          {selectedFamily && selectedFamily.versions.length > 1 && (
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="sel-version"
+                className="text-xs font-semibold uppercase tracking-wide text-[#6b6480]"
+              >
+                Version
+              </label>
+              <select
+                id="sel-version"
+                value={selectedVersion ?? ""}
+                onChange={(e) =>
+                  setSelectedVersion(e.target.value === "" ? null : parseInt(e.target.value))
+                }
+                className="rounded border border-[#c8c2d8] bg-white px-2 py-1.5 text-sm text-[#1a1625]"
+              >
+                <option value="">All versions</option>
+                {selectedFamily.versions.map((v) => (
+                  <option key={v.versionNumber} value={v.versionNumber}>
+                    v{v.versionNumber}{v.isPublished ? " (live)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="h-5 w-px bg-[#c8c2d8]" />
           <div className="flex items-center gap-2">
             <label
@@ -298,7 +362,7 @@ export default function DashboardPage() {
           <div className="h-5 w-px bg-[#c8c2d8]" />
           <button
             onClick={loadAll}
-            disabled={!hasDateRange || !funnelSlug || loading}
+            disabled={!hasDateRange || !selectedBaseSlug || loading}
             className="rounded bg-[#1753a0] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Loading…" : "↻ Refresh"}
@@ -369,6 +433,16 @@ export default function DashboardPage() {
                 Overview{" "}
                 <span className="text-xs font-normal text-[#6b6480]">
                   {fmtDate(from)} – {fmtDate(to)}
+                  {stats?.funnel.is_aggregated && (
+                    <span className="ml-2 rounded bg-[#e8e4f0] px-1.5 py-0.5 text-[0.68rem] font-semibold text-[#6b6480]">
+                      All versions aggregated
+                    </span>
+                  )}
+                  {!stats?.funnel.is_aggregated && stats?.funnel.version_number != null && (
+                    <span className="ml-2 rounded bg-[#dbeafe] px-1.5 py-0.5 text-[0.68rem] font-semibold text-[#1753a0]">
+                      v{stats.funnel.version_number}{stats.funnel.is_published ? " · live" : " · draft"}
+                    </span>
+                  )}
                 </span>
               </h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">

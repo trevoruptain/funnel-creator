@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { funnels, sessions } from '@/db/schema';
+import { sessions } from '@/db/schema';
 import { requireAdmin } from '@/lib/admin-auth';
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { resolveFunnel } from '@/lib/resolve-funnel';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -10,28 +11,30 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const funnelSlug = searchParams.get('funnel');
+    const funnelParam = searchParams.get('funnel');
+    const versionParam = searchParams.get('version');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 1000);
 
-    if (!funnelSlug || !from || !to) {
+    if (!funnelParam || !from || !to) {
       return NextResponse.json(
         { error: 'funnel, from, and to parameters are required' },
         { status: 400 }
       );
     }
 
-    const funnel = await db.query.funnels.findFirst({
-      where: eq(funnels.slug, funnelSlug),
-    });
-
-    if (!funnel) {
-      return NextResponse.json({ error: `Funnel not found: ${funnelSlug}` }, { status: 404 });
+    const resolution = await resolveFunnel(funnelParam, versionParam);
+    if (!resolution) {
+      return NextResponse.json({ error: `Funnel not found: ${funnelParam}` }, { status: 404 });
     }
 
+    const { funnelIds } = resolution;
+
     const conditions = [
-      eq(sessions.funnelId, funnel.id),
+      funnelIds.length === 1
+        ? eq(sessions.funnelId, funnelIds[0])
+        : inArray(sessions.funnelId, funnelIds),
       gte(sessions.startedAt, new Date(from)),
       lte(sessions.startedAt, new Date(to)),
     ];
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
       limit,
       with: {
         funnel: {
-          columns: { slug: true, name: true, priceVariant: true },
+          columns: { slug: true, name: true, priceVariant: true, versionNumber: true, isPublished: true },
         },
       },
     });
@@ -57,6 +60,8 @@ export async function GET(request: NextRequest) {
       session_id: s.sessionToken,
       funnel_slug: s.funnel.slug,
       funnel_name: s.funnel.name,
+      funnel_version: s.funnel.versionNumber,
+      is_published_version: s.funnel.isPublished,
       price_variant: s.funnel.priceVariant,
       email: s.email,
       ip: s.ip,

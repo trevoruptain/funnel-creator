@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { funnelSteps, funnels, responses, sessions, stepViews } from '@/db/schema';
+import { funnelSteps, responses, sessions, stepViews } from '@/db/schema';
 import { requireAdmin } from '@/lib/admin-auth';
-import { and, eq, gte, lte, sql } from 'drizzle-orm';
+import { resolveFunnel } from '@/lib/resolve-funnel';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -10,11 +11,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const funnelSlug = searchParams.get('funnel');
+    const funnelParam = searchParams.get('funnel');
+    const versionParam = searchParams.get('version');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
-    if (!funnelSlug) {
+    if (!funnelParam) {
       return NextResponse.json(
         { error: 'The "funnel" query parameter is required' },
         { status: 400 }
@@ -28,16 +30,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const funnel = await db.query.funnels.findFirst({
-      where: eq(funnels.slug, funnelSlug),
-    });
-
-    if (!funnel) {
-      return NextResponse.json({ error: `Funnel not found: ${funnelSlug}` }, { status: 404 });
+    const resolution = await resolveFunnel(funnelParam, versionParam);
+    if (!resolution) {
+      return NextResponse.json({ error: `Funnel not found: ${funnelParam}` }, { status: 404 });
     }
 
+    const { funnelIds, stepFunnel, targetFunnels, isAggregated } = resolution;
+
     const sessionConditions = [
-      eq(sessions.funnelId, funnel.id),
+      funnelIds.length === 1
+        ? eq(sessions.funnelId, funnelIds[0])
+        : inArray(sessions.funnelId, funnelIds),
       gte(sessions.startedAt, new Date(from)),
       lte(sessions.startedAt, new Date(to)),
     ];
@@ -91,8 +94,9 @@ export async function GET(request: NextRequest) {
       responseCounts.map((r) => [r.step_id, Number(r.answers)])
     );
 
+    // Use the step funnel (published or latest version) for step ordering
     const funnelStepsList = await db.query.funnelSteps.findMany({
-      where: eq(funnelSteps.funnelId, funnel.id),
+      where: eq(funnelSteps.funnelId, stepFunnel.id),
       orderBy: (fs, { asc }) => [asc(fs.sortOrder)],
       columns: { stepId: true, type: true, sortOrder: true },
     });
@@ -128,21 +132,23 @@ export async function GET(request: NextRequest) {
       if (!distributions[row.step_id]) {
         distributions[row.step_id] = [];
       }
-      distributions[row.step_id].push({
-        value: row.value,
-        count: Number(row.count),
-      });
+      distributions[row.step_id].push({ value: row.value, count: Number(row.count) });
     }
-
     for (const stepId of Object.keys(distributions)) {
       distributions[stepId].sort((a, b) => b.count - a.count);
     }
 
     return NextResponse.json({
       funnel: {
-        slug: funnel.slug,
-        name: funnel.name,
-        price_variant: funnel.priceVariant,
+        base_slug: stepFunnel.baseSlug,
+        name: stepFunnel.name,
+        price_variant: stepFunnel.priceVariant,
+        is_aggregated: isAggregated,
+        versions_included: targetFunnels.map((f) => f.versionNumber),
+        // Single-version fields (null when aggregating)
+        slug: isAggregated ? null : stepFunnel.slug,
+        version_number: isAggregated ? null : stepFunnel.versionNumber,
+        is_published: isAggregated ? null : stepFunnel.isPublished,
       },
       date_range: {
         from: overview.first_session ?? from,
