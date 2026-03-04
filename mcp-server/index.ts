@@ -385,7 +385,7 @@ OUTPUT: Detailed JSON with exact positions, font specs, overlay styles, visual t
 // ── Tool: generate_ad_image ──────────────────────────────────────────
 server.tool(
     'generate_ad_image',
-    'Generate ad image from design JSON using Gemini 3 Pro. Must call generate_ad_design first. Always generates 9:16 aspect ratio.',
+    'Generate ad image from design JSON using Gemini 3.1 Flash Image Preview. Must call generate_ad_design first. Always generates 9:16 aspect ratio.',
     {
         image_id: z.string().uuid().describe('Image ID from generate_ad_design'),
     },

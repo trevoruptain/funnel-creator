@@ -15,7 +15,7 @@ dependencies:
     specifier: ^3.2.2
     version: 3.2.2(react@19.2.3)
   '@google/genai':
-    specifier: ^1.41.0
+    specifier: ^1.43.0
     version: 1.43.0(@modelcontextprotocol/sdk@1.27.1)
   '@modelcontextprotocol/sdk':
     specifier: ^1.26.0

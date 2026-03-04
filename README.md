@@ -88,7 +88,7 @@ Default funnel (when no parameter): `aurora-399-v1`
 
 ## MCP Server (Claude Code)
 
-An MCP server at `mcp-server/index.ts` gives Claude Code tools for creating ad projects, generating images with Gemini 3 Pro, and uploading to Vercel Blob.
+An MCP server at `mcp-server/index.ts` gives Claude Code tools for creating ad projects, generating images with Gemini 3.1 Flash Image Preview, and uploading to Vercel Blob.
 
 Add the server to Claude Code from the project root:
 
@@ -140,7 +140,7 @@ See [claude_desktop_config.example.json](claude_desktop_config.example.json) for
 - **Next.js 16** — App Router, API routes
 - **Neon** — Serverless Postgres
 - **Drizzle ORM** — Type-safe schema & queries
-- **Vertex AI** — Gemini 3 Pro Image (ad creative generation)
+- **Vertex AI** — Gemini 3.1 Flash Image Preview (ad creative generation)
 - **Vercel Blob** — Image storage
 - **Framer Motion** — Step animations
 - **Tailwind CSS** — Styling

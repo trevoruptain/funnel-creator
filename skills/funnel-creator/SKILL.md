@@ -18,7 +18,7 @@ Takes a product idea and generates ready-to-use ad creatives including:
 - Audience targeting recommendations
 - Brand tone and messaging strategy
 - 3-5 distinct ad concepts with headlines, body copy, and CTAs
-- AI-generated images for each concept (via Gemini 3 Pro)
+- AI-generated images for each concept (via Gemini 3.1 Flash Image Preview)
 - Everything stored in the database and images on Vercel Blob
 
 ## Prerequisites
