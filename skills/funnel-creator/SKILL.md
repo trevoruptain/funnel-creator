@@ -93,7 +93,11 @@ Call MCP tool `create_funnel` with the confirmed payload.
 After success, present:
 - new funnel slug/base slug
 - steps created count
-- preview URL
+- preview URL (both forms):
+  - relative: `?funnel=<versioned_slug>`
+  - full: `https://<domain>/?funnel=<versioned_slug>`
+
+If the domain is not known yet, ask for it and then provide the full URL. If the user does not have a domain yet, provide a localhost/dev preview URL and keep the relative URL.
 
 Then ask if the user wants to:
 - insert/edit/remove steps now, or
@@ -271,6 +275,12 @@ Create 3-5 distinct ad concepts, each with a different angle or hook. For each c
 
 **Image Prompt:** *(Detailed, specific prompt for Gemini image generation. Include: subject, composition, camera angle, lighting, color palette, mood, style (photorealistic/lifestyle/studio), and text overlays if any. Be very specific.)*
 
+**Persona:** *(One-line micropersona label, e.g. "First-time pregnant mom, 28, anxious between appointments")*
+
+**Awareness Level:** *(Choose one: problem-unaware, problem-aware, solution-aware, product-aware, most-aware)*
+
+**Format Type:** *(Choose one visual format: lifestyle-hero, product-demo, word-wall, ugc-testimonial, comparison, problem-agitation, aspirational-after-state, data-stat)*
+
 **Why This Works:** *(1-2 sentences explaining the psychological hook or marketing principle)*
 
 ### Example Output:
@@ -313,7 +323,11 @@ Once the Originator is satisfied with the concepts:
 - `intake`: All 10 answers as an object
 - `inferred`: The audience profile, targeting strategy, and brand tone from Step 2
 
-**5b.** Call `add_ad_concepts` with the `project_id` from 5a and all approved concepts. Each concept should include the `image_prompt` field.
+**5b.** Call `add_ad_concepts` with the `project_id` from 5a and all approved concepts. Each concept should include:
+- required: `image_prompt`
+- strongly recommended strategy hints: `persona`, `awareness_level`, `format_type`
+
+These strategy hints are used to steer `generate_ad_design` without requiring DB schema changes.
 
 **5c.** For each concept, generate, review, and approve:
   1. Call `generate_ad_design` with the `ad_concept_id` from 5b

@@ -155,11 +155,40 @@ server.tool(
             cta: z.string(),
             visual_direction: z.string(),
             image_prompt: z.string().describe('Detailed image generation prompt for Gemini'),
+            persona: z.string().optional().describe('Optional micropersona label for this concept'),
+            awareness_level: z.enum([
+                'problem-unaware',
+                'problem-aware',
+                'solution-aware',
+                'product-aware',
+                'most-aware',
+            ]).optional().describe('Optional awareness stage for messaging calibration'),
+            format_type: z.enum([
+                'lifestyle-hero',
+                'product-demo',
+                'word-wall',
+                'ugc-testimonial',
+                'comparison',
+                'problem-agitation',
+                'aspirational-after-state',
+                'data-stat',
+            ]).optional().describe('Optional visual format hint for design generation'),
             why_this_works: z.string().optional(),
         })).describe('Array of ad concepts to add'),
     },
     async ({ project_id, concepts }) => {
-        const rows = concepts.map((c, i) => ({
+        const rows = concepts.map((c, i) => {
+            const strategyTags = [
+                c.persona ? `Persona: ${c.persona}` : null,
+                c.awareness_level ? `Awareness: ${c.awareness_level}` : null,
+                c.format_type ? `Format: ${c.format_type}` : null,
+            ].filter(Boolean);
+
+            const strategyBlock = strategyTags.length
+                ? `\n\n[Strategy Context]\n${strategyTags.join('\n')}`
+                : '';
+
+            return {
             projectId: project_id,
             sortOrder: i,
             angleName: c.angle_name,
@@ -167,11 +196,12 @@ server.tool(
             headline: c.headline,
             bodyCopy: c.body_copy,
             cta: c.cta,
-            visualDirection: c.visual_direction,
-            imagePrompt: c.image_prompt,
+            visualDirection: `${c.visual_direction}${strategyBlock}`,
+            imagePrompt: `${c.image_prompt}${strategyBlock}`,
             whyThisWorks: c.why_this_works ?? null,
             status: 'draft' as const,
-        }));
+            };
+        });
 
         const inserted = await db.insert(schema.adConcepts).values(rows)
             .returning({ id: schema.adConcepts.id, angleName: schema.adConcepts.angleName });
@@ -286,6 +316,7 @@ CONCEPT:
 - Body Copy: ${concept.bodyCopy}
 - CTA: ${concept.cta}
 - Visual Direction: ${concept.visualDirection}
+- Source Image Prompt: ${concept.imagePrompt ?? 'none'}
 
 Create a PREMIUM design specification optimized for Stories/Reels with:
 
@@ -309,6 +340,11 @@ Create a PREMIUM design specification optimized for Stories/Reels with:
    - Product-only shot: Clean studio, floating product, macro detail (NO humans)
    - Lifestyle shot: Human using/interacting with product, emotion visible
    - Environment shot: Product in natural setting, atmospheric (NO humans)
+
+7. **Use strategy context when present**:
+   - If Persona is provided, align styling and emotional tone to that persona.
+   - If Awareness is provided, calibrate text intensity and specificity to that stage.
+   - If Format is provided, match composition and visual DNA to that format.
 
 OUTPUT: Detailed JSON with exact positions, font specs, overlay styles, visual treatments.
         `.trim();

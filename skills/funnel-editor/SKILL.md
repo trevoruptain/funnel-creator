@@ -304,9 +304,13 @@ Call `list_funnels` and ask which version to copy from (typically the current pu
 
 Report back:
 - New slug (e.g. `aurora-399-v2`)
-- Preview URL (`?funnel=aurora-399-v2`)
+- Preview URL (both forms):
+  - relative: `?funnel=aurora-399-v2`
+  - full: `https://<domain>/?funnel=aurora-399-v2`
 - Number of steps copied
 - Remind the user this is unpublished — they can edit it safely without affecting live traffic
+
+If domain is unknown, ask for it and provide both links after. If no domain exists yet, include localhost/dev plus the relative URL.
 
 ### D-Publish: Publish a draft version
 
@@ -330,7 +334,9 @@ AskUserQuestion({
 If confirmed, call `publish_funnel_version`:
 - `funnel_slug`: the draft slug to publish
 
-Report the new live slug and the URL where users will see the updated funnel.
+Report the new live slug and live URL (both forms):
+- relative: `?funnel=<base_slug>`
+- full: `https://<domain>/?funnel=<base_slug>`
 
 ---
 
