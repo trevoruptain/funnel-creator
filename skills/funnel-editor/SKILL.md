@@ -145,6 +145,7 @@ AskUserQuestion({
     options: [
       { label: "Choice (multiple-choice or checkboxes)", value: "choice" },
       { label: "Input (email, text, or number)", value: "input" },
+      { label: "Scheduling (Calendly embed)", value: "scheduling" },
       { label: "Content (info card, welcome, checkout, result)", value: "content" }
     ]
   }]
@@ -155,6 +156,7 @@ AskUserQuestion({
 
 - If **choice**: `[{ label: "Multiple choice", value: "multiple-choice" }, { label: "Checkboxes", value: "checkboxes" }]`
 - If **input**: `[{ label: "Email", value: "email" }, { label: "Text input", value: "text-input" }, { label: "Number picker", value: "number-picker" }]`
+- If **scheduling**: `[{ label: "Embedded Calendly", value: "embedded-calendly" }]`
 - If **content**: `[{ label: "Info card", value: "info-card" }, { label: "Welcome", value: "welcome" }, { label: "Checkout", value: "checkout" }, { label: "Result", value: "result" }]`
 
 ### A5: Type-specific config
@@ -345,6 +347,7 @@ Build the `config` object from the fields below. **Numbers must be numbers, not 
 | number-picker | question, min (int), max (int) | description, unit, step (int), defaultValue (int), required |
 | info-card | title, description | stat, bullets (string[]), buttonText, image |
 | welcome | title | subtitle, logo, image, buttonText |
+| embedded-calendly | title, calendlyUrl | subtitle, minHeight (int), continueText |
 | checkout | title, price (int) | subtitle, originalPrice, currency, buttonText, features (string[]), guarantee, image |
 | result | title | subtitle, image, features (string[]), ctaText, ctaUrl |
 

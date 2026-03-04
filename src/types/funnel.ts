@@ -14,6 +14,7 @@ export type StepType =
   | 'text-input'
   | 'number-picker'
   | 'info-card'
+  | 'embedded-calendly'
   | 'checkout'
   | 'result';
 
@@ -136,6 +137,16 @@ export interface InfoCardStep extends BaseStep {
   buttonText?: string; // Default: "Continue"
 }
 
+// Embedded Calendly booking step
+export interface EmbeddedCalendlyStep extends BaseStep {
+  type: 'embedded-calendly';
+  title: string;
+  subtitle?: string;
+  calendlyUrl: string; // e.g. https://calendly.com/team/example
+  minHeight?: number; // Default: 700
+  continueText?: string; // Optional fallback if auto-advance event does not fire
+}
+
 // Checkout/reserve step
 export interface CheckoutStep extends BaseStep {
   type: 'checkout';
@@ -171,6 +182,7 @@ export type FunnelStep =
   | TextInputStep
   | NumberPickerStep
   | InfoCardStep
+  | EmbeddedCalendlyStep
   | CheckoutStep
   | ResultStep;
 

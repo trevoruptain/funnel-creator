@@ -12,6 +12,7 @@ import { MultipleChoiceStepComponent } from './steps/MultipleChoiceStep';
 import { NumberPickerStepComponent } from './steps/NumberPickerStep';
 import { RankingStepComponent } from './steps/RankingStep';
 import { ResultStepComponent } from './steps/ResultStep';
+import { EmbeddedCalendlyStepComponent } from './steps/EmbeddedCalendlyStep';
 import { TextInputStepComponent } from './steps/TextInputStep';
 import { WelcomeStepComponent } from './steps/WelcomeStep';
 
@@ -96,6 +97,8 @@ export function FunnelRenderer() {
         return <TextInputStepComponent step={currentStep} />;
       case 'info-card':
         return <InfoCardStepComponent step={currentStep} />;
+      case 'embedded-calendly':
+        return <EmbeddedCalendlyStepComponent step={currentStep} />;
       case 'number-picker':
         // Special case: use HeightPickerStep for height question
         if (currentStep.id === 'height') {

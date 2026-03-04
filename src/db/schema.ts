@@ -21,6 +21,7 @@ export const stepTypeEnum = pgEnum("step_type", [
   "text-input",
   "number-picker",
   "info-card",
+  "embedded-calendly",
   "checkout",
   "result",
 ]);

@@ -614,7 +614,7 @@ server.tool(
         step_id: z.string().describe('Unique step slug (e.g. budget-question)'),
         type: z.enum([
             'welcome', 'multiple-choice', 'checkboxes', 'email', 'text-input',
-            'number-picker', 'info-card', 'checkout', 'result',
+            'number-picker', 'info-card', 'embedded-calendly', 'checkout', 'result',
         ]).describe('Step type'),
         config: z.record(z.string(), z.unknown()).describe('Type-specific config (question, options, etc.)'),
     },
@@ -938,7 +938,7 @@ server.tool(
             step_id: z.string().describe('Unique step ID (slug)'),
             type: z.enum([
                 'welcome', 'multiple-choice', 'checkboxes', 'ranking', 'email', 'text-input',
-                'number-picker', 'info-card', 'checkout', 'result',
+                'number-picker', 'info-card', 'embedded-calendly', 'checkout', 'result',
             ]).describe('Step type'),
             config: z.record(z.string(), z.unknown()).describe('Type-specific step config'),
             show_if: z.object({
