@@ -92,6 +92,8 @@ function deepMerge(
     return result;
 }
 
+const VERSIONED_SLUG_RE = /^([a-z0-9]+(?:-[a-z0-9]+)*)-v(\d+)$/;
+
 // ── Tool: create_project ─────────────────────────────────────────────
 server.tool(
     'create_project',
@@ -912,6 +914,113 @@ Render everything as one cohesive, ready-to-publish creative. Be creative with h
                     image_id,
                     blob_url: blob.url,
                     pathname,
+                }, null, 2),
+            }],
+        };
+    }
+);
+
+// ── Tool: create_funnel_version ──────────────────────────────────────
+server.tool(
+    'create_funnel',
+    'Create a brand-new funnel from scratch (new funnel family/version) with an initial ordered step list. This creates a draft v1 and does not publish it.',
+    {
+        funnel_slug: z.string().describe('Versioned slug for the new funnel (must be <base-slug>-v1, e.g. aurora-399-v1)'),
+        name: z.string().describe('Human-readable funnel name'),
+        base_slug: z.string().optional().describe('Optional explicit base slug. If provided, it must match funnel_slug without the -vN suffix.'),
+        version_label: z.string().optional().describe('Optional display version label (e.g. "v1", "March 2026")'),
+        price_variant: z.string().optional().describe('Optional price variant label (e.g. "399")'),
+        project_id: z.string().uuid().optional().describe('Optional project UUID to link this funnel to an ad project'),
+        theme: z.record(z.string(), z.unknown()).describe('Funnel theme object'),
+        tracking: z.record(z.string(), z.unknown()).optional().describe('Optional tracking configuration object'),
+        meta: z.record(z.string(), z.unknown()).optional().describe('Optional funnel metadata object'),
+        steps: z.array(z.object({
+            step_id: z.string().describe('Unique step ID (slug)'),
+            type: z.enum([
+                'welcome', 'multiple-choice', 'checkboxes', 'ranking', 'email', 'text-input',
+                'number-picker', 'info-card', 'checkout', 'result',
+            ]).describe('Step type'),
+            config: z.record(z.string(), z.unknown()).describe('Type-specific step config'),
+            show_if: z.object({
+                stepId: z.string(),
+                operator: z.enum(['equals', 'not_equals', 'in', 'not_in']),
+                value: z.union([z.string(), z.array(z.string())]),
+            }).optional().describe('Optional conditional display rule'),
+        })).min(1).describe('Initial step list in order'),
+    },
+    async ({ funnel_slug, name, base_slug, version_label, price_variant, project_id, theme, tracking, meta, steps }) => {
+        const parsed = VERSIONED_SLUG_RE.exec(funnel_slug);
+        if (!parsed) {
+            return { content: [{ type: 'text' as const, text: 'Error: funnel_slug must match <base-slug>-v<number> (e.g. aurora-399-v1)' }] };
+        }
+
+        const parsedBaseSlug = parsed[1];
+        const parsedVersion = Number(parsed[2]);
+        if (!Number.isInteger(parsedVersion) || parsedVersion !== 1) {
+            return { content: [{ type: 'text' as const, text: 'Error: create_funnel only supports new v1 funnels. Use a slug ending in -v1.' }] };
+        }
+
+        if (base_slug && base_slug !== parsedBaseSlug) {
+            return { content: [{ type: 'text' as const, text: `Error: base_slug (${base_slug}) must match funnel_slug base (${parsedBaseSlug})` }] };
+        }
+
+        const existingSlug = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.slug, funnel_slug),
+            columns: { id: true },
+        });
+        if (existingSlug) {
+            return { content: [{ type: 'text' as const, text: `Error: funnel_slug already exists: ${funnel_slug}` }] };
+        }
+
+        const existingFamily = await db.query.funnels.findFirst({
+            where: eq(schema.funnels.baseSlug, parsedBaseSlug),
+            columns: { id: true },
+        });
+        if (existingFamily) {
+            return { content: [{ type: 'text' as const, text: `Error: base_slug already exists: ${parsedBaseSlug}. Use create_funnel_version to add another version.` }] };
+        }
+
+        const ids = steps.map((s) => s.step_id);
+        const uniqueIds = new Set(ids);
+        if (uniqueIds.size !== ids.length) {
+            return { content: [{ type: 'text' as const, text: 'Error: steps must have unique step_id values' }] };
+        }
+
+        const [newFunnel] = await db.insert(schema.funnels).values({
+            projectId: project_id ?? null,
+            slug: funnel_slug,
+            baseSlug: parsedBaseSlug,
+            versionNumber: 1,
+            isPublished: false,
+            name,
+            version: version_label ?? null,
+            priceVariant: price_variant ?? null,
+            theme,
+            tracking: tracking ?? null,
+            meta: meta ?? null,
+        }).returning({ id: schema.funnels.id, baseSlug: schema.funnels.baseSlug, slug: schema.funnels.slug, versionNumber: schema.funnels.versionNumber });
+
+        await db.insert(schema.funnelSteps).values(
+            steps.map((step, idx) => ({
+                funnelId: newFunnel.id,
+                sortOrder: idx,
+                stepId: step.step_id,
+                type: step.type,
+                config: step.config,
+                showIf: step.show_if ?? null,
+            }))
+        );
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    funnel_slug: newFunnel.slug,
+                    base_slug: newFunnel.baseSlug,
+                    version_number: newFunnel.versionNumber,
+                    steps_created: steps.length,
+                    is_published: false,
+                    preview_url: `?funnel=${newFunnel.slug}`,
                 }, null, 2),
             }],
         };

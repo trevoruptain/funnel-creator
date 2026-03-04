@@ -8,7 +8,9 @@ allowed-tools:
 
 # Ad Creative Pipeline Skill
 
-This skill helps Originators create Meta (Facebook/Instagram) ad concepts from product descriptions. It handles project intake, infers audience targeting, generates ad creative concepts, creates images with Gemini 3 Pro, and persists everything to the database via MCP tools.
+This skill helps Originators:
+1) create Meta (Facebook/Instagram) ad concepts from product descriptions, and
+2) create a brand-new funnel from scratch (new funnel v1 + initial steps) via MCP tools.
 
 ## What This Skill Does
 
@@ -26,6 +28,7 @@ The `funnel-creator` MCP server must be configured. It provides the following to
 - `add_ad_concepts` — batch insert ad concepts
 - `generate_ad_image` — generate image with Gemini and upload to Vercel Blob
 - `get_project` / `list_projects` — retrieve project data
+- `create_funnel` — create a brand-new draft funnel from scratch (v1 + initial steps)
 - `publish_campaign` — create a Meta campaign (Campaign + Ad Set + Ads) from an approved project
 - `activate_campaign` — flip a PAUSED campaign to ACTIVE
 
@@ -36,13 +39,71 @@ The following environment variables must be set for Meta publishing:
 
 ## How to Use
 
-Run `/funnel-creator` to start a new ad project.
+Run `/funnel-creator` to:
+- start a new ad project, or
+- create a new funnel from scratch.
 
 ---
 
 ## Instructions for Claude
 
-When this skill is invoked, follow these steps:
+When this skill is invoked, first determine which mode the user wants:
+
+## Mode Selection (required first step)
+
+Ask:
+- "Do you want to (A) create a brand-new funnel from scratch, or (B) generate ad concepts/images?"
+
+If the user chooses A, follow **Mode A** below and do not run the ad-concept flow.
+If the user chooses B, follow the existing ad-concept flow in **Mode B**.
+
+---
+
+## Mode A: Create Funnel From Scratch
+
+### A1) Collect structure inputs
+
+Gather and confirm:
+- `funnel_slug` (must be `<base>-v1`, e.g. `prenatal-confidence-v1`)
+- `name` (human-readable funnel name)
+- `price_variant` (optional)
+- `version_label` (optional)
+- `project_id` (optional; only if linking to an existing project)
+- `theme` object
+- ordered `steps` array, each containing:
+  - `step_id`
+  - `type`
+  - `config`
+  - optional `show_if` with `{ stepId, operator, value }`
+
+### A2) Validate before tool call
+
+Before calling `create_funnel`, ensure:
+- slug ends with `-v1`
+- `step_id` values are unique
+- steps are in intended order
+- any `show_if.stepId` references a step that exists in the funnel
+
+### A3) Call `create_funnel`
+
+Call MCP tool `create_funnel` with the confirmed payload.
+
+### A4) Confirm result + next actions
+
+After success, present:
+- new funnel slug/base slug
+- steps created count
+- preview URL
+
+Then ask if the user wants to:
+- insert/edit/remove steps now, or
+- publish when ready (typically after QA on draft).
+
+---
+
+## Mode B: Ad Creative Pipeline
+
+When this mode is selected, follow these steps:
 
 ### Step 1: Project Intake
 
