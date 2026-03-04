@@ -79,6 +79,8 @@ AskUserQuestion({
 ```
 
 > **Tip:** Edits should target an unpublished draft version. If only a published version exists, suggest creating a new draft version first (Flow D).
+>
+> **Enforced safety rule:** Step mutation tools are draft-only. Calls against published/live funnels are rejected by server guardrails.
 
 ### A2: Where to insert?
 
@@ -200,7 +202,7 @@ AskUserQuestion({
 })
 ```
 
-> **Warning:** If the user picks a published/live version, remind them that editing a live funnel will break version history. Recommend creating a new draft version first (Flow D), then editing the draft.
+> **Warning:** If the user picks a published/live version, `edit_funnel_step` will be rejected. Always create/select an unpublished draft first (Flow D), then edit the draft.
 
 ### B2: Which step?
 
@@ -249,7 +251,7 @@ Report the updated config returned by the tool.
 
 Same as B1 — call `list_funnels` and ask.
 
-> **Warning:** Same caution as editing — prefer removing from a draft version, not the live one.
+> **Warning:** Same caution as editing — `remove_funnel_step` will be rejected for published/live funnels. Always remove from a draft version.
 
 ### C2: Which step to remove?
 
@@ -333,6 +335,9 @@ AskUserQuestion({
 
 If confirmed, call `publish_funnel_version`:
 - `funnel_slug`: the draft slug to publish
+- `confirm_publish`: exact phrase `PUBLISH <funnel_slug>` (example: `PUBLISH aurora-399-v3`)
+
+If the confirmation phrase is missing or not an exact match, do not retry blindly. Show the expected phrase and ask the user to confirm again.
 
 Report the new live slug and live URL (both forms):
 - relative: `?funnel=<base_slug>`

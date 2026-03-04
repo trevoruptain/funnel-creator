@@ -94,6 +94,30 @@ function deepMerge(
 
 const VERSIONED_SLUG_RE = /^([a-z0-9]+(?:-[a-z0-9]+)*)-v(\d+)$/;
 
+type DraftFunnelCheck =
+    | { ok: true; funnel: { id: string; slug: string; baseSlug: string; versionNumber: number; isPublished: boolean } }
+    | { ok: false; error: string };
+
+async function requireDraftFunnel(funnelSlug: string): Promise<DraftFunnelCheck> {
+    const funnel = await db.query.funnels.findFirst({
+        where: eq(schema.funnels.slug, funnelSlug),
+        columns: { id: true, slug: true, baseSlug: true, versionNumber: true, isPublished: true },
+    });
+
+    if (!funnel) {
+        return { ok: false, error: `Error: Funnel not found: ${funnelSlug}` };
+    }
+
+    if (funnel.isPublished) {
+        return {
+            ok: false,
+            error: `Error: Draft-only tool. Funnel ${funnelSlug} is published/live. Create a new draft with create_funnel_version first.`,
+        };
+    }
+
+    return { ok: true, funnel };
+}
+
 // ── Tool: create_project ─────────────────────────────────────────────
 server.tool(
     'create_project',
@@ -642,7 +666,7 @@ server.tool(
 // ── Tool: insert_funnel_step ─────────────────────────────────────────
 server.tool(
     'insert_funnel_step',
-    'Insert a funnel step at beginning, after a specific step, or end. Reorders existing steps as needed.',
+    'Insert a funnel step at beginning, after a specific step, or end. Draft-only: published funnels are rejected. Reorders existing steps as needed.',
     {
         funnel_slug: z.string().describe('Funnel slug'),
         position: z.enum(['beginning', 'after_step', 'end']).describe('Where to insert'),
@@ -655,13 +679,11 @@ server.tool(
         config: z.record(z.string(), z.unknown()).describe('Type-specific config (question, options, etc.)'),
     },
     async ({ funnel_slug, position, after_step_id, step_id, type, config }) => {
-        const funnel = await db.query.funnels.findFirst({
-            where: eq(schema.funnels.slug, funnel_slug),
-        });
-
-        if (!funnel) {
-            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        const draftCheck = await requireDraftFunnel(funnel_slug);
+        if (!draftCheck.ok) {
+            return { content: [{ type: 'text' as const, text: draftCheck.error }] };
         }
+        const funnel = draftCheck.funnel;
 
         if (position === 'after_step' && !after_step_id) {
             return { content: [{ type: 'text' as const, text: 'Error: after_step_id required when position is after_step' }] };
@@ -1142,8 +1164,19 @@ server.tool(
     'Promote a funnel version to live/published. Unpublishes all other versions in the same family. After publishing, the funnel is accessible via ?funnel=<base_slug>.',
     {
         funnel_slug: z.string().describe('Slug of the funnel version to publish (e.g. aurora-399-v2)'),
+        confirm_publish: z.string().describe('Required explicit confirmation phrase: PUBLISH <funnel_slug> (exact match).'),
     },
-    async ({ funnel_slug }) => {
+    async ({ funnel_slug, confirm_publish }) => {
+        const expectedConfirmation = `PUBLISH ${funnel_slug}`;
+        if (confirm_publish !== expectedConfirmation) {
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: `Error: confirm_publish mismatch. To publish ${funnel_slug}, pass confirm_publish exactly as: "${expectedConfirmation}"`,
+                }],
+            };
+        }
+
         const target = await db.query.funnels.findFirst({
             where: eq(schema.funnels.slug, funnel_slug),
             columns: { id: true, baseSlug: true, versionNumber: true },
@@ -1180,21 +1213,18 @@ server.tool(
 // ── Tool: edit_funnel_step ────────────────────────────────────────────
 server.tool(
     'edit_funnel_step',
-    'Edit the config of a specific step within a funnel version. The config is deep-merged with the existing step config. Call get_funnel_steps first to see the current step structure.',
+    'Edit the config of a specific step within a funnel version. Draft-only: published funnels are rejected. The config is deep-merged with the existing step config. Call get_funnel_steps first to see the current step structure.',
     {
         funnel_slug: z.string().describe('Funnel slug to edit (should be an unpublished draft version)'),
         step_id: z.string().describe('Step ID to edit (e.g. pregnancy-status)'),
         config: z.record(z.string(), z.unknown()).describe('Config fields to update (deep-merged into existing config)'),
     },
     async ({ funnel_slug, step_id, config: newConfig }) => {
-        const funnel = await db.query.funnels.findFirst({
-            where: eq(schema.funnels.slug, funnel_slug),
-            columns: { id: true },
-        });
-
-        if (!funnel) {
-            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        const draftCheck = await requireDraftFunnel(funnel_slug);
+        if (!draftCheck.ok) {
+            return { content: [{ type: 'text' as const, text: draftCheck.error }] };
         }
+        const funnel = draftCheck.funnel;
 
         const step = await db.query.funnelSteps.findFirst({
             where: and(
@@ -1231,20 +1261,17 @@ server.tool(
 // ── Tool: remove_funnel_step ──────────────────────────────────────────
 server.tool(
     'remove_funnel_step',
-    'Remove a step from a funnel version and re-sequence sort_order for the remaining steps.',
+    'Remove a step from a funnel version and re-sequence sort_order for the remaining steps. Draft-only: published funnels are rejected.',
     {
         funnel_slug: z.string().describe('Funnel slug to edit (should be an unpublished draft version)'),
         step_id: z.string().describe('Step ID to remove (e.g. budget-question)'),
     },
     async ({ funnel_slug, step_id }) => {
-        const funnel = await db.query.funnels.findFirst({
-            where: eq(schema.funnels.slug, funnel_slug),
-            columns: { id: true },
-        });
-
-        if (!funnel) {
-            return { content: [{ type: 'text' as const, text: `Error: Funnel not found: ${funnel_slug}` }] };
+        const draftCheck = await requireDraftFunnel(funnel_slug);
+        if (!draftCheck.ok) {
+            return { content: [{ type: 'text' as const, text: draftCheck.error }] };
         }
+        const funnel = draftCheck.funnel;
 
         const step = await db.query.funnelSteps.findFirst({
             where: and(
