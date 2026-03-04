@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   integer,
@@ -57,25 +57,34 @@ export const projects = pgTable("projects", {
 });
 
 // ── Funnels ──────────────────────────────────────────────────────────
-export const funnels = pgTable("funnels", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  projectId: uuid("project_id").references(() => projects.id, {
-    onDelete: "set null",
-  }),
-  slug: text("slug").notNull().unique(), // e.g. "aurora-399-v2"
-  baseSlug: text("base_slug").notNull(), // shared across versions e.g. "aurora-399"
-  versionNumber: integer("version_number").notNull().default(1),
-  isPublished: boolean("is_published").notNull().default(false),
-  name: text("name").notNull(),
-  version: text("version"),
-  priceVariant: text("price_variant"),
-  theme: jsonb("theme").notNull(), // FunnelTheme object
-  tracking: jsonb("tracking"),
-  meta: jsonb("meta"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const funnels = pgTable(
+  "funnels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    slug: text("slug").notNull().unique(), // e.g. "aurora-399-v2"
+    baseSlug: text("base_slug").notNull(), // shared across versions e.g. "aurora-399"
+    versionNumber: integer("version_number").notNull().default(1),
+    isPublished: boolean("is_published").notNull().default(false),
+    name: text("name").notNull(),
+    version: text("version"),
+    priceVariant: text("price_variant"),
+    theme: jsonb("theme").notNull(), // FunnelTheme object
+    tracking: jsonb("tracking"),
+    meta: jsonb("meta"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("funnels_base_version_unique").on(table.baseSlug, table.versionNumber),
+    uniqueIndex("funnels_one_published_per_base")
+      .on(table.baseSlug)
+      .where(sql`${table.isPublished} = true`),
+  ]
+);
 
 // ── Funnel Steps (questions / info cards / etc.) ─────────────────────
 export const funnelSteps = pgTable("funnel_steps", {
